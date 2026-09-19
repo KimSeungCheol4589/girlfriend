@@ -31,10 +31,10 @@ select set_config('request.jwt.claims', tests_support.claims(:'ua'), true);
 select set_config('request.jwt.claim.sub', :'ua', true);
 set local role authenticated;
 
+-- 준비는 로그인 사용자가 한다.
 do $do$
 declare
   v_prep   jsonb;
-  v_final  jsonb;
   v_asset  uuid;
 begin
   perform tests_support.expect_error(
@@ -55,47 +55,131 @@ begin
     v_prep ->> 'objectPath',
     'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaa1/' || v_asset::text || '.webp',
     '경로는 서버가 정한다');
+  perform tests_support.eq(v_prep ->> 'bucket', 'space-assets', '비공개 버킷 이름을 알려준다');
 
-  perform tests_support.expect_error(
-    format($q$select public.finalize_upload(%L, 2048, 99999, 99999, gen_random_uuid())$q$, v_asset),
-    'GF412', '픽셀 상한 초과 거부');
-
-  v_final := public.finalize_upload(v_asset, 2048, 1200, 800, gen_random_uuid());
-  perform tests_support.eq(v_final ->> 'state', 'ready', 'finalize_upload는 ready로 바꾼다');
-
-  -- 두 번째, 세 번째 사진
   v_prep := public.prepare_upload('memory', 'image/jpeg', 2048, gen_random_uuid());
   perform tests_support.put('asset2', v_prep ->> 'assetId');
-  perform public.finalize_upload((v_prep ->> 'assetId')::uuid, 2048, 800, 600, gen_random_uuid());
-
   v_prep := public.prepare_upload('memory', 'image/png', 2048, gen_random_uuid());
   perform tests_support.put('asset3', v_prep ->> 'assetId');
-  perform public.finalize_upload((v_prep ->> 'assetId')::uuid, 2048, 800, 600, gen_random_uuid());
-
-  -- 커버용 파일
   v_prep := public.prepare_upload('cover', 'image/webp', 4096, gen_random_uuid());
   perform tests_support.put('cover1', v_prep ->> 'assetId');
-  perform public.finalize_upload((v_prep ->> 'assetId')::uuid, 4096, 1600, 900, gen_random_uuid());
-
   v_prep := public.prepare_upload('cover', 'image/webp', 4096, gen_random_uuid());
   perform tests_support.put('cover2', v_prep ->> 'assetId');
-  perform public.finalize_upload((v_prep ->> 'assetId')::uuid, 4096, 1600, 900, gen_random_uuid());
+
+  -- 검토 지적 D2용: A가 올렸지만 어디에도 붙이지 않을 파일들
+  v_prep := public.prepare_upload('memory', 'image/webp', 2048, gen_random_uuid());
+  perform tests_support.put('asset4', v_prep ->> 'assetId');   -- ready, 미첨부
+  v_prep := public.prepare_upload('memory', 'image/webp', 2048, gen_random_uuid());
+  perform tests_support.put('asset5', v_prep ->> 'assetId');   -- pending 유지
+  v_prep := public.prepare_upload('cover', 'image/webp', 4096, gen_random_uuid());
+  perform tests_support.put('cover3', v_prep ->> 'assetId');   -- ready, 미사용 커버
 end;
 $do$;
 
--- 상대 구성원은 남의 파일을 확정할 수 없다.
+-- ---------------------------------------------------------------------------
+-- 확정(ready 전환)은 신뢰된 서버 역할만 할 수 있다
+-- ---------------------------------------------------------------------------
+-- 로그인 사용자는 서명 자체를 실행할 수 없다. Server Action 관례가 아니라 권한으로 막는다.
+select tests_support.expect_error(
+  format($q$select public.finalize_upload(%L, %L, 2048, 1200, 800, 'image/webp', gen_random_uuid())$q$,
+         tests_support.get('asset1'), :'ua'),
+  '42501', '로그인 사용자는 finalize_upload를 직접 호출할 수 없다');
+
+-- 예전 서명(사용자 호출 가능)이 남아 있지 않은지도 확인한다.
+select tests_support.ok(
+  not exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = 'finalize_upload'
+       and pg_get_function_identity_arguments(p.oid) = 'uuid, bigint, integer, integer, uuid'),
+  '예전 finalize_upload 서명이 제거됐다');
+
+-- 상대 구성원은 남의 파일을 폐기할 수 없다(폐기는 계속 사용자 경로다).
 reset role;
 select set_config('request.jwt.claims', tests_support.claims(:'ub'), true);
 select set_config('request.jwt.claim.sub', :'ub', true);
 set local role authenticated;
-
-select tests_support.expect_error(
-  format($q$select public.finalize_upload(%L, 2048, 800, 600, gen_random_uuid())$q$,
-         tests_support.get('asset1')),
-  'GF404', '상대 구성원은 남의 파일을 확정할 수 없다');
 select tests_support.expect_error(
   format($q$select public.discard_upload(%L, gen_random_uuid())$q$, tests_support.get('asset2')),
   'GF404', '상대 구성원은 남의 파일을 폐기할 수 없다');
+
+-- 신뢰된 서버 역할로 전환한다. 최종 사용자 클레임을 지운다.
+reset role;
+select set_config('request.jwt.claims', '', true);
+select set_config('request.jwt.claim.sub', '', true);
+set local role service_role;
+
+do $do$
+declare
+  v_final jsonb;
+  v_a1 uuid := tests_support.get('asset1')::uuid;
+begin
+  -- 위조 방지: 실제 업로더가 아닌 사람을 행위자로 보내면 존재 여부를 알리지 않는다.
+  perform tests_support.expect_error(
+    format($q$select public.finalize_upload(%L, '22222222-2222-4222-8222-222222222222',
+             2048, 800, 600, 'image/webp', gen_random_uuid())$q$, v_a1),
+    'GF404', '업로더가 일치하지 않으면 확정 거부');
+
+  -- 위조 방지: 존재하지 않는 행위자
+  perform tests_support.expect_error(
+    format($q$select public.finalize_upload(%L, '99999999-9999-4999-8999-999999999999',
+             2048, 800, 600, 'image/webp', gen_random_uuid())$q$, v_a1),
+    'GF404', '없는 사용자를 행위자로 보내면 거부');
+
+  -- 위조 방지: 선언한 MIME과 다른 유형을 확인값으로 보고
+  perform tests_support.expect_error(
+    format($q$select public.finalize_upload(%L, '11111111-1111-4111-8111-111111111111',
+             2048, 800, 600, 'image/png', gen_random_uuid())$q$, v_a1),
+    'GF412', '확인된 MIME이 선언값과 다르면 거부');
+
+  -- 위조 방지: 상한을 넘는 크기·픽셀
+  perform tests_support.expect_error(
+    format($q$select public.finalize_upload(%L, '11111111-1111-4111-8111-111111111111',
+             10485761, 800, 600, 'image/webp', gen_random_uuid())$q$, v_a1),
+    'GF412', '크기 상한 초과 거부');
+  perform tests_support.expect_error(
+    format($q$select public.finalize_upload(%L, '11111111-1111-4111-8111-111111111111',
+             2048, 99999, 99999, 'image/webp', gen_random_uuid())$q$, v_a1),
+    'GF412', '픽셀 상한 초과 거부');
+
+  -- 정상 확정
+  v_final := public.finalize_upload(v_a1, '11111111-1111-4111-8111-111111111111',
+                                    2048, 1200, 800, 'image/webp', gen_random_uuid());
+  perform tests_support.eq(v_final ->> 'state', 'ready', '신뢰된 역할의 확정은 ready로 바꾼다');
+
+  perform public.finalize_upload(tests_support.get('asset2')::uuid,
+    '11111111-1111-4111-8111-111111111111', 2048, 800, 600, 'image/jpeg', gen_random_uuid());
+  perform public.finalize_upload(tests_support.get('asset3')::uuid,
+    '11111111-1111-4111-8111-111111111111', 2048, 800, 600, 'image/png', gen_random_uuid());
+  perform public.finalize_upload(tests_support.get('cover1')::uuid,
+    '11111111-1111-4111-8111-111111111111', 4096, 1600, 900, 'image/webp', gen_random_uuid());
+  perform public.finalize_upload(tests_support.get('cover2')::uuid,
+    '11111111-1111-4111-8111-111111111111', 4096, 1600, 900, 'image/webp', gen_random_uuid());
+  -- D2용: asset4와 cover3만 확정한다. asset5는 pending으로 남긴다.
+  perform public.finalize_upload(tests_support.get('asset4')::uuid,
+    '11111111-1111-4111-8111-111111111111', 2048, 800, 600, 'image/webp', gen_random_uuid());
+  perform public.finalize_upload(tests_support.get('cover3')::uuid,
+    '11111111-1111-4111-8111-111111111111', 4096, 1600, 900, 'image/webp', gen_random_uuid());
+end;
+$do$;
+
+-- 이중 방어: service_role 권한이더라도 최종 사용자 클레임이 실린 요청은 거부한다.
+do $do$
+declare v_prep jsonb;
+begin
+  -- 사용자 세션 클레임을 흉내 낸다(권한은 service_role인 상태).
+  perform set_config('request.jwt.claims',
+    tests_support.claims('11111111-1111-4111-8111-111111111111'), true);
+  perform set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+
+  perform tests_support.expect_error(
+    format($q$select public.finalize_upload(%L, '11111111-1111-4111-8111-111111111111',
+             2048, 800, 600, 'image/webp', gen_random_uuid())$q$, tests_support.get('asset1')),
+    'GF403', '최종 사용자 세션 컨텍스트에서는 확정할 수 없다');
+
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('request.jwt.claim.sub', '', true);
+end;
+$do$;
 
 -- ---------------------------------------------------------------------------
 -- 추억 저장
@@ -187,13 +271,14 @@ select tests_support.ok(
   (select a.expires_at is null from public.assets a where a.id = tests_support.get('asset1')::uuid),
   '첨부된 사진은 만료 정리 대상에서 빠진다');
 
--- 다른 기록에 붙은 사진은 재사용할 수 없다.
-select set_config('request.jwt.claims', tests_support.claims(:'ub'), true);
-select set_config('request.jwt.claim.sub', :'ub', true);
+-- 업로더 본인(A)도 이미 연결된 사진이나 삭제 예정 사진은 다시 붙일 수 없다.
+-- (업로더 검사를 통과해야 도달하는 코드이므로 A로 확인한다.)
+select set_config('request.jwt.claims', tests_support.claims(:'ua'), true);
+select set_config('request.jwt.claim.sub', :'ua', true);
 set local role authenticated;
 
 select tests_support.expect_error(
-  format($q$select public.save_memory(null, '남의 사진 재사용', '', current_date - 1, null,
+  format($q$select public.save_memory(null, '사진 재사용', '', current_date - 1, null,
            array[]::text[], array[%L::uuid], false, 0, gen_random_uuid())$q$,
          tests_support.get('asset1')),
   'GF409', '이미 연결된 사진은 다른 기록에 붙일 수 없다');
@@ -204,16 +289,58 @@ select tests_support.expect_error(
          tests_support.get('asset2')),
   'GF422', 'deleting 사진은 붙일 수 없다');
 
--- 상대 구성원도 공유 기록은 수정할 수 있다.
+-- 검토 지적 D2: 상대가 올린 비공개 파일을 UUID만 알아내 붙일 수 없어야 한다.
+-- 존재 여부를 알리지 않기 위해 NOT_FOUND로 통일한다(상태 검사보다 업로더 검사가 먼저다).
+reset role;
+select set_config('request.jwt.claims', tests_support.claims(:'ub'), true);
+select set_config('request.jwt.claim.sub', :'ub', true);
+set local role authenticated;
+
+-- 상대가 올린 파일은 이미 연결됐는지·삭제 예정인지조차 구분되지 않아야 한다.
+select tests_support.expect_error(
+  format($q$select public.save_memory(null, '남의 연결된 사진', '', current_date - 1, null,
+           array[]::text[], array[%L::uuid], false, 0, gen_random_uuid())$q$,
+         tests_support.get('asset1')),
+  'GF404', 'B에게는 상대의 연결된 사진도 NOT_FOUND로만 보인다');
+select tests_support.expect_error(
+  format($q$select public.save_memory(null, '남의 미첨부 파일', '', current_date - 1, null,
+           array[]::text[], array[%L::uuid], false, 0, gen_random_uuid())$q$,
+         tests_support.get('asset4')),
+  'GF404', 'B는 A의 ready 미첨부 파일을 붙일 수 없다');
+
+select tests_support.expect_error(
+  format($q$select public.save_memory(null, '남의 대기 파일', '', current_date - 1, null,
+           array[]::text[], array[%L::uuid], false, 0, gen_random_uuid())$q$,
+         tests_support.get('asset5')),
+  'GF404', 'B는 A의 pending 파일을 붙일 수 없다(상태도 알리지 않는다)');
+
+reset role;
+select tests_support.eq(
+  (select a.state from public.assets a where a.id = tests_support.get('asset4')::uuid),
+  'ready', '거부된 시도가 A의 파일 상태를 바꾸지 않았다');
+select tests_support.ok(
+  not exists (select 1 from public.memory_photos p
+               where p.asset_id = tests_support.get('asset4')::uuid),
+  '거부된 시도가 연결을 만들지 않았다');
+
+select set_config('request.jwt.claims', tests_support.claims(:'ub'), true);
+select set_config('request.jwt.claim.sub', :'ub', true);
+set local role authenticated;
+
+-- 검토 지적 D2의 허용 쪽: 이미 이 기록에 붙어 있던 사진은 올린 사람이 아니어도
+-- 유지·재정렬할 수 있다(공유 기록이므로). 여기서는 B가 순서를 뒤집는다.
 do $do$
 declare v_save jsonb;
 begin
   v_save := public.save_memory(tests_support.get('memory1')::uuid, '첫 데이트(B 수정)', '',
                                current_date - 3, null, array[]::text[],
-                               array[tests_support.get('asset3')::uuid,
-                                     tests_support.get('asset1')::uuid],
+                               array[tests_support.get('asset1')::uuid,
+                                     tests_support.get('asset3')::uuid],
                                true, 2, gen_random_uuid());
   perform tests_support.eq((v_save ->> 'version')::integer, 3, '상대 구성원도 공유 기록을 수정한다');
+  perform tests_support.eq((v_save ->> 'photoCount')::integer, 2, '사진 2장 유지');
+  perform tests_support.eq(jsonb_array_length(v_save -> 'detachedAssets'), 0,
+    '재정렬만 했으므로 정리 대상이 없다');
 end;
 $do$;
 
@@ -221,6 +348,11 @@ reset role;
 select tests_support.eq(
   (select m.author_id from public.memories m where m.id = tests_support.get('memory1')::uuid),
   :'ua'::uuid, '상대가 수정해도 작성자는 바뀌지 않는다');
+select tests_support.eq(
+  (select p.sort_order from public.memory_photos p
+    where p.memory_id = tests_support.get('memory1')::uuid
+      and p.asset_id = tests_support.get('asset1')::uuid), 0,
+  'B의 재정렬이 실제로 반영된다(A가 올린 사진이어도)');
 
 -- ---------------------------------------------------------------------------
 -- 꾸미기 저장
@@ -284,6 +416,39 @@ select tests_support.eq(
   (select s.accent_color from public.space_settings s
     where s.space_id = 'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaa1'),
   '#8b435a', '포인트 색상은 소문자로 정규화된다');
+
+-- 검토 지적 D2(커버): 새 커버는 올린 사람만 지정할 수 있고,
+-- 바뀌지 않는 기존 커버는 두 구성원 모두 그대로 저장할 수 있다.
+select set_config('request.jwt.claims', tests_support.claims(:'ub'), true);
+select set_config('request.jwt.claim.sub', :'ub', true);
+set local role authenticated;
+
+do $do$
+declare
+  v_result jsonb;
+  v_sections jsonb := '[{"key":"pinned","visible":true},
+                        {"key":"recentMemories","visible":true},
+                        {"key":"wishlist","visible":false}]'::jsonb;
+begin
+  perform tests_support.expect_error(
+    format($q$select public.save_customization('rose', '#8b435a', %L, %L::jsonb, 3, %L)$q$,
+           tests_support.get('cover3'), v_sections, gen_random_uuid()),
+    'GF404', 'B는 A가 올린 파일을 새 커버로 지정할 수 없다');
+
+  -- 기존 커버(cover2)를 그대로 둔 저장은 허용된다.
+  v_result := public.save_customization('sage', '#8b435a',
+                tests_support.get('cover2')::uuid, v_sections, 3, gen_random_uuid());
+  perform tests_support.eq((v_result ->> 'version')::integer, 4,
+    'B도 기존 커버를 유지한 채 꾸미기를 저장할 수 있다');
+  perform tests_support.eq(v_result ->> 'coverAssetId', tests_support.get('cover2'),
+    '커버는 그대로 유지된다');
+end;
+$do$;
+
+reset role;
+select tests_support.eq(
+  (select a.state from public.assets a where a.id = tests_support.get('cover3')::uuid),
+  'ready', '거부된 커버 시도가 A의 파일을 건드리지 않았다');
 
 -- ---------------------------------------------------------------------------
 -- 맛집과 개인 후기

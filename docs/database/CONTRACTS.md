@@ -36,6 +36,10 @@ DESIGN 7절의 서버 작업 이름을 DB 함수로 구현한 것이다.
 | `42501` | (PostgreSQL) | `NOT_FOUND` | 권한 없는 직접 접근. 사용자에게 상세를 노출하지 않는다 |
 | `23505` 등 | (PostgreSQL) | `CONFLICT` | 예상 밖 제약 위반. 로그에 오류 코드만 남긴다 |
 
+알려진 동시 실행 경쟁(서로 다른 공간 동시 수락, 첫 프로필 동시 생성, 사진 동시 첨부)은
+원시 `23505`가 아니라 `GF409`로 매핑된다. 앱에서 `23505`를 따로 처리할 필요가 없다.
+`23505`가 실제로 올라오면 계약에 없는 경로이므로 보고 대상이다.
+
 `FORBIDDEN`은 DESIGN 7절 목록에 없던 코드다. `/onboarding`의 "생성 권한 없음" 상태를
 `VALIDATION_ERROR`로 뭉개지 않기 위해 추가했다(설계 차이, [SECURITY.md](./SECURITY.md) 참고).
 
@@ -85,21 +89,51 @@ DESIGN `acceptInvite`, 8.1 흐름.
 
 ## 2. 업로드
 
+업로드는 **두 개의 다른 신뢰 수준**으로 나뉜다.
+
+| 단계 | 실행 주체 | 이유 |
+| --- | --- | --- |
+| `prepare_upload` | 로그인 사용자 | 자기 공간에 pending 자리를 만든다 |
+| Storage 업로드 | 로그인 사용자 | 발급된 정확한 경로에만 올릴 수 있다(버킷 정책) |
+| `finalize_upload` | **신뢰된 서버 역할만** | ready 전환은 서버가 실제 파일을 확인한 뒤에만 가능해야 한다 |
+
 ### `prepare_upload(p_purpose text, p_mime_type text, p_bytes bigint, p_request_id uuid) → jsonb`
 
 - `p_purpose`: `memory | cover` · `p_mime_type`: `image/jpeg | image/png | image/webp`
-- 반환: `{"assetId": uuid, "objectPath": text, "state": "pending", "expiresAt": timestamptz, "maxBytes": bigint}`
+- 반환: `{"assetId": uuid, "bucket": "space-assets", "objectPath": text, "state": "pending", "expiresAt": timestamptz, "maxBytes": bigint}`
 - `objectPath`는 `space_id/asset_id.ext` 형식의 **생성 열**이다. 클라이언트가 경로를 정하거나 바꿀 수 없다.
+  Storage 정책도 이 경로와 정확히 일치하는 업로드만 허용한다.
 - 오류: `GF401`, `GF404`(소속 없음), `GF422`(purpose/mime/bytes)
 
-### `finalize_upload(p_asset_id uuid, p_bytes bigint, p_width integer, p_height integer, p_request_id uuid) → jsonb`
+### `finalize_upload(p_asset_id uuid, p_uploader_id uuid, p_bytes bigint, p_width integer, p_height integer, p_verified_mime_type text, p_request_id uuid) → jsonb`
 
-- 업로더 본인만 호출할 수 있다. 다른 구성원이 호출하면 `GF404`.
-- 이미 `ready`면 같은 성공 응답을 돌려준다(멱등).
+**로그인 사용자는 이 함수를 호출할 수 없다(EXECUTE 없음 → `42501`).** `service_role` 또는 DB 워커만 호출한다.
+
+- 이전 서명 `finalize_upload(uuid, bigint, integer, integer, uuid)`는 제거됐다.
+  그 서명은 authenticated가 직접 호출해 아무 파일도 올리지 않고 asset을 ready로 만들 수 있었다.
+- `p_uploader_id`: 서버가 확인한 업로더. asset의 실제 업로더와 다르면 `GF404`.
+- `p_verified_mime_type`: 서버가 **실제로 확인한** 유형. `prepare_upload` 때 선언한 유형과 다르면 `GF412`.
+- 이중 방어: 요청에 최종 사용자 세션 컨텍스트(`auth.uid()` 또는 `service_role`이 아닌 JWT role)가
+  실려 있으면 권한이 잘못 부여돼 있어도 `GF403`으로 거부한다.
+- 이미 `ready`면 같은 성공 응답을 돌려준다(멱등). 멱등성 키의 주인은 `p_uploader_id`다.
 - 반환: `{"assetId": uuid, "objectPath": text, "state": "ready", "expiresAt": timestamptz}`
-- 오류: `GF401`, `GF404`, `GF412`(만료·삭제 예정·크기/치수 위반)
-- **한계**: bytes·width·height는 호출자가 전달한 값이다. 실제 파일 디코딩 검증은 Server Action이
-  Storage에서 먼저 수행해야 한다. DB는 소유자·공간·상태 전이·상한값만 강제한다.
+- 오류: `42501`(로그인 사용자 호출), `GF403`(최종 사용자 세션), `GF404`(업로더 불일치·없는 사용자·없는 asset),
+  `GF412`(만료·삭제 예정·MIME 불일치·크기/치수 상한), `GF422`(uploaderId 누락)
+
+> **DB는 이미지 바이너리를 디코딩하지 않는다.** 실제 디코딩·픽셀 수 확인·EXIF 제거는
+> 신뢰된 서버 워커가 해야 하고 **아직 구현되지 않았다**. 이 계약이 보장하는 것은
+> "검증 결과를 기록할 수 있는 주체가 신뢰된 역할로 제한된다"는 것뿐이다.
+> 워커 구현 전까지는 ready 전환 자체를 하지 않는 편이 안전하다.
+
+호출 예(서버 워커):
+
+```sql
+-- service_role 키 또는 DB 워커 연결에서
+select public.finalize_upload(
+  '<assetId>', '<검증한 업로더 userId>',
+  <실제 바이트 수>, <디코딩한 너비>, <디코딩한 높이>,
+  '<실제 확인한 MIME>', '<requestId>');
+```
 
 ### `discard_upload(p_asset_id uuid, p_request_id uuid) → jsonb`
 
@@ -121,6 +155,9 @@ DESIGN `saveMemory`. 본문과 사진 연결을 한 트랜잭션으로 저장한
 - 사진: `p_photo_asset_ids`의 **배열 순서가 곧 표시 순서**다(0부터). 최대 10장, 중복 불가.
   각 파일은 같은 공간·`purpose='memory'`·`state='ready'`·미연결이어야 한다.
   집합에서 빠진 파일은 `deleting`으로 바뀌고 응답에 실린다.
+- **새로 붙는 사진은 올린 사람만 붙일 수 있다.** 상대가 올린 대기·미첨부 파일의 UUID를 넣으면
+  존재 여부를 알리지 않고 `GF404`다. 호출 전에 이미 그 기록에 붙어 있던 사진은
+  유지·재정렬·제거 모두 두 구성원이 할 수 있다(공유 기록이므로).
 - 작성자·공간은 변경할 수 없다. 공유 기록이므로 두 구성원 모두 수정할 수 있다.
 - 반환: `{"memoryId": uuid, "version": integer, "photoCount": integer, "detachedAssets": [{"assetId","objectPath"}]}`
 - 오류: `GF401`, `GF404`(기록 없음/타 공간, 사진 없음), `GF422`(제목 1~80자, 본문 ≤10000자, 장소 ≤100자, 태그 5개·각 20자·중복 불가, 미래 날짜, 사진 10장 초과/중복/미준비/목적 불일치), `GF409`(버전 불일치, 이미 다른 기록에 연결된 사진, requestId 입력 불일치)
@@ -178,6 +215,8 @@ DESIGN `saveMemory`. 본문과 사진 연결을 한 트랜잭션으로 저장한
   각 원소는 `{"key": ..., "visible": boolean}` 두 필드만 갖는다. 순서만 바꿀 수 있다.
 - `p_cover_asset_id`: 같은 공간·`purpose='cover'`·`state='ready'`. `null`이면 커버 해제.
   교체·해제된 이전 커버는 참조를 끊은 뒤 `deleting`이 되고 응답에 실린다.
+- **새로 지정하는 커버는 올린 사람만 지정할 수 있다**(상대가 올린 파일이면 `GF404`).
+  기존 커버를 그대로 두는 저장은 두 구성원 모두 할 수 있다.
 - 반환: `{"spaceId": uuid, "version": integer, "coverAssetId": uuid|null, "detachedAssets": [...]}`
 - 오류: `GF401`, `GF404`, `GF422`, `GF409`
 
@@ -210,6 +249,22 @@ DESIGN `saveMemory`. 본문과 사진 연결을 한 트랜잭션으로 저장한
 
 커서 페이지네이션은 DESIGN 3절대로 `(memory_date, id)` / `(created_at, id)` 쌍을 쓴다.
 
+## 6.1 Storage 접근 (`space-assets` 비공개 버킷)
+
+파일 본문도 `assets`와 같은 규칙으로 막힌다. 앱은 별도 검사를 하지 않아도 되지만,
+버킷 이름과 경로는 반드시 `prepare_upload` 응답의 값을 그대로 쓴다.
+
+| 동작 | 로그인 사용자 | 규칙 |
+| --- | --- | --- |
+| 업로드(INSERT) | 허용 | 자기 공간·자기가 만든 **pending** asset의 정확한 생성 경로에만 |
+| 다운로드(SELECT) | 조건부 | 업로더 본인은 자기 pending/미첨부 파일, 상대 구성원은 `ready`이면서 실제 첨부된 파일만 |
+| 덮어쓰기(UPDATE) | 불가 | 정책 없음. upsert 업로드를 쓰지 않는다 |
+| 삭제(DELETE) | 불가 | 정리는 `service_role` 워커가 한다 |
+| 비로그인 | 불가 | 정책 없음 |
+
+`deleting` 상태 파일은 업로더에게도 열리지 않는다.
+다른 버킷의 정책은 이 작업에서 만들거나 바꾸지 않았다.
+
 ## 7. Server Action 구현 시 주의
 
 1. 모든 변경 호출에 `requestId`(uuid v4)를 만들어 보내고, 사용자가 재시도하면 **같은 값을 유지**한다.
@@ -217,3 +272,7 @@ DESIGN `saveMemory`. 본문과 사진 연결을 한 트랜잭션으로 저장한
 3. `detachedAssets`를 받은 뒤 Storage 삭제를 수행한다. 실패해도 DB는 이미 일관된 상태이므로 재시도 큐에만 남긴다.
 4. 초대 토큰은 응답에서 곧바로 링크로 만들어 사용자에게 보여주고 서버 로그에 남기지 않는다.
 5. 조회 권한 오류(`42501`)를 사용자에게 그대로 보여주지 않는다. `NOT_FOUND`로 통일한다.
+6. `finalize_upload`는 **사용자 세션 클라이언트로 호출하면 안 된다.** 서버 전용 클라이언트(service_role)나
+   별도 워커에서, 업로드된 객체를 실제로 내려받아 디코딩한 뒤 호출한다. 그 디코딩 구현이 끝나기 전에는
+   사진 기능을 활성화하지 않는다.
+7. Storage 업로드에 upsert 옵션을 쓰지 않는다. 덮어쓰기는 정책에서 막혀 있어 실패한다.

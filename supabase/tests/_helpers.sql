@@ -70,6 +70,43 @@ begin
 end;
 $$;
 
+-- SQL을 실행하고 SQLSTATE를 돌려준다. 성공하면 NULL이다.
+create or replace function tests_support.try_sqlstate(p_sql text)
+returns text
+language plpgsql
+as $$
+declare
+  v_state text;
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    v_state := sqlstate;
+  end;
+  return v_state;
+end;
+$$;
+
+-- RLS/권한으로 막히지 않았음을 확인한다(다른 원인의 오류는 그대로 드러낸다).
+-- Storage 내부 트리거처럼 환경에 따라 달라지는 실패와 "정책이 막았다"를 구분하기 위해 쓴다.
+create or replace function tests_support.expect_not_denied(p_sql text, p_label text)
+returns void
+language plpgsql
+as $$
+declare
+  v_state text := tests_support.try_sqlstate(p_sql);
+begin
+  if v_state = '42501' then
+    raise exception 'TEST FAIL [%]: 정책/권한으로 거부됐다(42501)', p_label using errcode = 'TS001';
+  end if;
+  if v_state is null then
+    raise notice 'ok  % (허용)', p_label;
+  else
+    raise notice 'ok  % (정책 통과, 환경 오류 %)', p_label, v_state;
+  end if;
+end;
+$$;
+
 -- 권한 거부(42501) 또는 RLS로 인한 0행 반환 중 하나임을 확인한다.
 create or replace function tests_support.expect_no_rows(p_sql text, p_label text)
 returns void

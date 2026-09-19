@@ -72,6 +72,11 @@ select tests_support.expect_error('select * from public.spaces', '42501', 'anon:
 select tests_support.expect_error('select * from public.profiles', '42501', 'anon: profiles 거부');
 select tests_support.expect_error('select * from public.restaurant_reviews', '42501', 'anon: 후기 거부');
 
+-- 정책이 호출하는 헬퍼는 실행할 수 있지만 남의 파일에 대해서는 아무것도 알려주지 않아야 한다.
+select tests_support.ok(
+  app.is_asset_attached('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3') = false,
+  'anon은 파일 첨부 여부를 알 수 없다');
+
 -- ---------------------------------------------------------------------------
 -- 구성원 A
 -- ---------------------------------------------------------------------------
@@ -125,6 +130,14 @@ select tests_support.ok(
   exists (select 1 from public.assets a where a.id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4'),
   'B에게 커버 파일은 보인다');
 
+-- 같은 공간 구성원에게는 첨부 여부가 정확히 나와야 한다(정책 의미 유지).
+select tests_support.ok(
+  app.is_asset_attached('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3'),
+  'B는 같은 공간 파일의 첨부 여부를 확인할 수 있다');
+select tests_support.ok(
+  app.is_asset_attached('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2') = false,
+  '미첨부 파일은 첨부 아님으로 나온다');
+
 -- ---------------------------------------------------------------------------
 -- 외부 계정 C
 -- ---------------------------------------------------------------------------
@@ -148,6 +161,14 @@ select tests_support.eq((select count(*) from public.space_settings)::bigint, 1:
   'C는 자기 공간 설정만 본다');
 select tests_support.eq((select count(*) from public.profiles)::bigint, 1::bigint,
   'C는 자기 프로필만 본다');
+
+-- 외부 계정이 asset UUID를 알아내도 첨부 여부라는 사실조차 얻지 못해야 한다(검토 지적 D6).
+select tests_support.ok(
+  app.is_asset_attached('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3') = false,
+  'C는 남의 공간 파일의 첨부 여부를 알 수 없다');
+select tests_support.ok(
+  app.is_asset_attached('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4') = false,
+  'C는 남의 공간 커버의 첨부 여부를 알 수 없다');
 
 -- 특정 ID를 직접 지정해도 결과가 없어야 한다(존재 여부 추측 방지).
 select tests_support.expect_no_rows(

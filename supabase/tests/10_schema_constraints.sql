@@ -96,10 +96,28 @@ select tests_support.expect_error(
             values (%L, %L, '위시인데 날짜 있음', 'wishlist', current_date - 1)$q$, :'s1', :'ua'),
   '23514', 'wishlist인데 방문일 있음 거부');
 
+-- 회귀: 지도 링크 제약의 정규식이 반복 횟수 한도(255)를 넘으면
+-- map_url이 NULL이 아닌 모든 행에서 SQLSTATE 2201B가 난다. 23514가 나와야 한다.
 select tests_support.expect_error(
   format($q$insert into public.restaurants (space_id, created_by, name, map_url)
             values (%L, %L, 'http 링크', 'http://map.naver.com/x')$q$, :'s1', :'ua'),
-  '23514', 'http 지도 링크 거부');
+  '23514', 'http 지도 링크 거부 (2201B 아님)');
+
+select tests_support.expect_error(
+  format($q$insert into public.restaurants (space_id, created_by, name, map_url)
+            values (%L, %L, '너무 긴 링크', %L)$q$, :'s1', :'ua',
+         'https://map.naver.com/' || repeat('a', 500)),
+  '23514', '500자 초과 지도 링크 거부');
+
+select tests_support.expect_error(
+  format($q$insert into public.restaurants (space_id, created_by, name, map_url)
+            values (%L, %L, '공백 포함 링크', 'https://map.naver.com/a b')$q$, :'s1', :'ua'),
+  '23514', '공백 포함 지도 링크 거부');
+
+-- 정상 링크는 들어간다(정규식이 실제로 컴파일되는지 확인하는 회귀 테스트).
+insert into public.restaurants (space_id, created_by, name, map_url)
+values (:'s1', :'ua', '정상 링크', 'https://map.naver.com/p/1');
+select tests_support.ok(true, 'HTTPS 지도 링크 저장 (정규식 컴파일 정상)');
 
 -- ---------------------------------------------------------------------------
 -- 홈 섹션 JSON
