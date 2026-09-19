@@ -31,8 +31,10 @@
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
     "NEXT_TELEMETRY_DISABLED": "1"
   },
+  // pnpm의 전역 bin 디렉터리는 $PNPM_HOME/bin이다. PATH에 없으면
+  // `pnpm config set --global`이 거부된다. 두 경로를 모두 앞에 둔다.
   "remoteEnv": {
-    "PATH": "${containerEnv:PNPM_HOME}:${containerEnv:PATH}"
+    "PATH": "${containerEnv:PNPM_HOME}/bin:${containerEnv:PNPM_HOME}:${containerEnv:PATH}"
   },
 
   // 1) 새 볼륨은 root 소유로 마운트된다. 설치 전에 소유자를 node로 바꿔 쓰기 가능하게 한다.
@@ -44,7 +46,7 @@
   //    일회용 컨테이너 안에서만 실행되므로 Windows 호스트의 전역 설정은 바뀌지 않는다.
   //    store와 node_modules는 서로 다른 볼륨이라 pnpm이 hardlink 대신 복사로 대체한다.
   //    설치가 조금 느려질 뿐 동작에는 문제가 없고, 격리가 우선이라 이 구성을 유지한다.
-  "onCreateCommand": "sudo chown -R node:node '${containerWorkspaceFolder}/node_modules' /home/node/.pnpm && mkdir -p \"$PNPM_HOME\" \"$COREPACK_HOME\" /home/node/.pnpm/store && corepack enable --install-directory \"$PNPM_HOME\" && corepack prepare pnpm@11.19.0 --activate && pnpm config set --global storeDir /home/node/.pnpm/store && pnpm --version",
+  "onCreateCommand": "sudo chown -R node:node '${containerWorkspaceFolder}/node_modules' /home/node/.pnpm && mkdir -p \"$PNPM_HOME\" \"$PNPM_HOME/bin\" \"$COREPACK_HOME\" /home/node/.pnpm/store && corepack enable --install-directory \"$PNPM_HOME\" && corepack prepare pnpm@11.19.0 --activate && pnpm config set --global storeDir /home/node/.pnpm/store && pnpm --version",
 
   "updateContentCommand": "pnpm install --frozen-lockfile",
   "postCreateCommand": "pnpm exec next --version && pnpm exec tsc --version",
