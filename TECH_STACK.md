@@ -21,7 +21,7 @@
 | 사진 저장 | Supabase Storage | 사진 파일을 DB와 분리해 저장하고 접근 권한 적용 |
 | 입력 검증 | Zod | 제목·날짜·별점·지도 URL 등을 서버에서 검증 |
 | 배포 | Vercel | Next.js 앱 배포와 변경 사항 미리보기 |
-| 코드 관리 | Git + GitHub 비공개 저장소 | 변경 이력과 배포 소스 관리 |
+| 코드 관리 | Git + GitHub | 변경 이력과 배포 소스 관리. 현재 지정 저장소는 공개 상태이며 앱 데이터의 비공개 정책과 별개 |
 
 Next.js App Router는 서버·클라이언트 컴포넌트를 조합할 수 있다. 조회 화면은 서버 중심으로, 폼·사진 미리보기·꾸미기 상호작용은 클라이언트에서 처리하는 구성을 제안한다. [Next.js 공식 문서](https://nextjs.org/docs/app/getting-started/server-and-client-components)
 
@@ -140,4 +140,4 @@ Vercel과 Supabase의 무료 플랜 적용 가능 여부를 확인해 시작한�
 
 초기에는 서비스 기능을 만드는 데 집중하고, 기술 추가는 실제 필요가 생길 때 결정한다. 구현 시작 순서는 **로그인·공간 권한 → 사진 한 장이 포함된 추억 등록 → 두 계정 조회 → 맛집 → 꾸미기**를 권장한다.
 
-서비스 요구사항과 출시 범위는 [PROJECT_PLAN.md](./PROJECT_PLAN.md)를 참고한다.
+서비스 요구사항과 출시 범위는 [PROJECT_PLAN.md](./PROJECT_PLAN.md), 구체적인 화면·DB·권한·서버 작업 계약은 [DESIGN.md](./DESIGN.md)를 참고한다. 상세 설계에서는 업로드 상태 관리를 위한 assets와 중복 요청 처리를 위한 mutation_requests를 추가하고, 파일 경로 직접 참조를 asset ID 참조로 구체화한다.
