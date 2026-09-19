@@ -16,11 +16,17 @@ import type { DemoPhoto } from '@/lib/demo/types';
 export function PhotoUploader({
   photos,
   onChange,
+  onCreateObjectUrls,
   rejected,
   onRejected,
 }: {
   photos: DemoPhoto[];
   onChange: (next: DemoPhoto[]) => void;
+  /**
+   * 이 컴포넌트가 방금 만든 objectURL만 알린다.
+   * 폼은 이 목록만 자기 소유로 보고 정리한다. 기존 기록에서 온 사진은 저장소가 계속 소유한다.
+   */
+  onCreateObjectUrls?: (urls: string[]) => void;
   rejected: { name: string; reason: string }[];
   onRejected: (next: { name: string; reason: string }[]) => void;
 }) {
@@ -46,7 +52,10 @@ export function PhotoUploader({
       }));
 
     onRejected(result.rejected);
-    if (added.length > 0) onChange([...photos, ...added]);
+    if (added.length > 0) {
+      onCreateObjectUrls?.(added.map((photo) => photo.src));
+      onChange([...photos, ...added]);
+    }
 
     // 같은 파일을 다시 고를 수 있도록 입력값을 비운다.
     if (inputRef.current) inputRef.current.value = '';

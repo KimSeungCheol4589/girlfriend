@@ -26,6 +26,62 @@ function pickCover(page: Page, name = 'our-cover.png', mimeType = 'image/png') {
   return page.locator('input[type="file"]').setInputFiles({ name, mimeType, buffer: TINY_PNG });
 }
 
+/** 사진 n장짜리 기록을 만들고 상세 화면까지 이동한다. */
+async function createMemoryWithPhotos(page: Page, title: string, count: number) {
+  await page.goto('/memories/new');
+  await page.getByLabel(/제목/).fill(title);
+  await page.getByLabel(/날짜/).fill('2026-09-19');
+  await page.locator('input[type="file"]').setInputFiles(
+    Array.from({ length: count }, (_, index) => ({
+      name: `photo-${index}.png`,
+      mimeType: 'image/png',
+      buffer: TINY_PNG,
+    })),
+  );
+  await page.getByRole('button', { name: '기록 추가' }).click();
+  await page.getByRole('link', { name: '이 기록 보기' }).click();
+  await expect(page.getByRole('heading', { name: title })).toBeVisible();
+}
+
+/** 상세 화면 갤러리의 썸네일까지 포함해 실제로 디코딩된 이미지 폭을 모은다. */
+function loadedImageWidths(page: Page): Promise<number[]> {
+  return page
+    .locator('figure img')
+    .evaluateAll((elements) =>
+      elements.map((element) => (element as HTMLImageElement).naturalWidth),
+    );
+}
+
+/**
+ * 상세 화면이 쓰는 blob 주소가 아직 살아 있는지 확인한다.
+ *
+ * 이미 디코딩된 <img>는 주소가 해제돼도 naturalWidth가 남으므로,
+ * 해제 여부는 주소를 실제로 가져와 봐야 알 수 있다.
+ */
+async function blobSourcesAlive(page: Page): Promise<boolean> {
+  const sources = await page
+    .locator('figure img')
+    .evaluateAll((elements) =>
+      elements
+        .map((element) => (element as HTMLImageElement).src)
+        .filter((src) => src.startsWith('blob:')),
+    );
+
+  if (sources.length === 0) return false;
+
+  return page.evaluate(async (urls) => {
+    for (const url of urls) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return false;
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  }, sources);
+}
+
 test.describe('P2-1 테마 미리보기 팔레트', () => {
   test('로즈를 적용한 뒤 크림을 고르면 미리보기가 크림 팔레트로 바뀐다', async ({ page }) => {
     await page.goto('/customize');
@@ -91,16 +147,7 @@ test.describe('P2-3 사진 objectURL 소유권', () => {
   });
 
   test('사진 순서만 바꿔도 미저장 변경으로 잡힌다', async ({ page }) => {
-    await page.goto('/memories/new');
-
-    await page.getByLabel(/제목/).fill('순서 변경 확인');
-    await page.getByLabel(/날짜/).fill('2026-09-19');
-    await page.locator('input[type="file"]').setInputFiles([
-      { name: 'a.png', mimeType: 'image/png', buffer: TINY_PNG },
-      { name: 'b.png', mimeType: 'image/png', buffer: TINY_PNG },
-    ]);
-    await page.getByRole('button', { name: '기록 추가' }).click();
-    await page.getByRole('link', { name: '이 기록 보기' }).click();
+    await createMemoryWithPhotos(page, '순서 변경 확인', 2);
     await page.getByRole('link', { name: '수정', exact: true }).click();
 
     // 장수는 그대로 두고 순서만 바꾼다.
@@ -109,6 +156,86 @@ test.describe('P2-3 사진 objectURL 소유권', () => {
     await page.getByRole('button', { name: '취소', exact: true }).click();
     await expect(page.getByRole('alertdialog')).toBeVisible();
     await expect(page.getByText('쓰던 내용을 두고 나갈까요?')).toBeVisible();
+  });
+});
+
+/**
+ * R-1 (2차 검토 84164c00-37ae-4dd1-a783-3de8a797d534 / head 9889af5).
+ *
+ * 폼이 저장소 소유 objectURL까지 자기 것으로 등록해, 편집을 취소하면
+ * 이미 저장된 사진이 해제되던 결함. 사진 2장 기록에서 순서 변경·빼기·추가 세 경우를
+ * 모두 '나가기'까지 진행한 뒤 원래 사진이 살아 있는지 확인한다.
+ */
+test.describe('R-1 저장소 소유 사진 URL 보존', () => {
+  for (const scenario of [
+    { name: '순서만 바꾸고 취소', action: '1번째 사진 뒤로', kind: 'move' as const },
+    { name: '한 장 빼고 취소', kind: 'remove' as const },
+    { name: '한 장 추가하고 취소', kind: 'add' as const },
+  ]) {
+    test(`사진 2장 기록에서 ${scenario.name}해도 원래 사진이 살아 있다`, async ({ page }) => {
+      const title = `R1 ${scenario.kind}`;
+      await createMemoryWithPhotos(page, title, 2);
+      await page.getByRole('link', { name: '수정', exact: true }).click();
+
+      if (scenario.kind === 'move') {
+        await page.getByRole('button', { name: '1번째 사진 뒤로' }).click();
+      } else if (scenario.kind === 'remove') {
+        await page.getByRole('button', { name: '빼기' }).first().click();
+      } else {
+        await page
+          .locator('input[type="file"]')
+          .setInputFiles({ name: 'extra.png', mimeType: 'image/png', buffer: TINY_PNG });
+      }
+
+      // 저장하지 않고 실제로 나간다.
+      await page.getByRole('button', { name: '취소', exact: true }).click();
+      await page.getByRole('alertdialog').getByRole('button', { name: '나가기' }).click();
+
+      await expect(page.getByRole('heading', { name: title })).toBeVisible();
+
+      // 저장된 사진(본 이미지 + 썸네일)이 모두 디코딩돼야 한다.
+      await expect
+        .poll(async () => {
+          const widths = await loadedImageWidths(page);
+          return widths.length >= 2 && widths.every((width) => width > 0);
+        })
+        .toBe(true);
+
+      // 그리고 그 주소들이 아직 해제되지 않았어야 한다.
+      // (이미 디코딩된 이미지는 해제 후에도 naturalWidth가 남으므로 이 확인이 핵심이다.)
+      expect(await blobSourcesAlive(page)).toBe(true);
+    });
+  }
+
+  test('저장하지 않은 새 사진의 미리보기 주소는 나갈 때 정리된다', async ({ page }) => {
+    await page.goto('/memories/new');
+
+    await page.getByLabel(/제목/).fill('정리 확인');
+    await page.getByLabel(/날짜/).fill('2026-09-19');
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles({ name: 'temp.png', mimeType: 'image/png', buffer: TINY_PNG });
+
+    const previewUrl = await page
+      .locator('form img')
+      .first()
+      .evaluate((element) => (element as HTMLImageElement).src);
+    expect(previewUrl.startsWith('blob:')).toBe(true);
+
+    await page.getByRole('button', { name: '취소', exact: true }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: '나가기' }).click();
+    await expect(page.getByRole('heading', { name: '추억', exact: true })).toBeVisible();
+
+    // 해제된 주소는 더 이상 가져올 수 없다.
+    const stillUsable = await page.evaluate(async (url) => {
+      try {
+        const response = await fetch(url);
+        return response.ok;
+      } catch {
+        return false;
+      }
+    }, previewUrl);
+    expect(stillUsable).toBe(false);
   });
 });
 
@@ -131,6 +258,48 @@ test.describe('P2-4 앱 내부 이동 확인', () => {
     await expect(page.getByText('아직 적용하지 않은 변경이 있어요.')).toBeVisible();
 
     // 이동하기 → 홈으로 나간다.
+    await page.getByRole('link', { name: '둘이 쌓는 공간' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: '이동하기' }).click();
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  /**
+   * R-2 (2차 검토 84164c00-37ae-4dd1-a783-3de8a797d534 / head 9889af5).
+   *
+   * 현재 경로로의 이동을 확인 대상으로 잡은 뒤 가드를 전역 해제해,
+   * 그 다음 이동이 무확인으로 통과하던 결함.
+   */
+  test('현재 경로 메뉴를 눌러도 draft가 유지되고 이후 이동에는 확인이 필요하다', async ({
+    page,
+  }) => {
+    await page.goto('/customize');
+
+    await page.getByRole('button', { name: /^세이지 차분한 연녹색/ }).click();
+    await expect(page.getByText('아직 적용하지 않은 변경이 있어요.')).toBeVisible();
+
+    // 지금 보고 있는 화면과 같은 경로(꾸미기) 메뉴를 누른다.
+    await page.getByRole('link', { name: '꾸미기' }).filter({ visible: true }).click();
+
+    // 화면을 떠나지 않으므로 확인할 것이 없고, 고른 값도 그대로다.
+    await expect(page.getByRole('alertdialog')).toBeHidden();
+    await expect(page).toHaveURL(/\/customize$/);
+    await expect(page.getByText('아직 적용하지 않은 변경이 있어요.')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^세이지 차분한 연녹색/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    // 다른 경로로 이동할 때는 여전히 확인을 받아야 한다.
+    await page.getByRole('link', { name: '둘이 쌓는 공간' }).click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toBeVisible();
+
+    // 취소하면 draft가 남는다.
+    await dialog.getByRole('button', { name: '계속 꾸미기' }).click();
+    await expect(page).toHaveURL(/\/customize$/);
+    await expect(page.getByText('아직 적용하지 않은 변경이 있어요.')).toBeVisible();
+
+    // 명시적으로 나갈 때만 이동한다.
     await page.getByRole('link', { name: '둘이 쌓는 공간' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: '이동하기' }).click();
     await expect(page).toHaveURL(/\/$/);

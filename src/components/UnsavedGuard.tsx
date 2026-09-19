@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   createContext,
   useCallback,
@@ -42,8 +42,11 @@ const UnsavedGuardContext = createContext<UnsavedGuardValue | null>(null);
 
 export function UnsavedGuardProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   // 렌더를 유발하지 않도록 현재 가드는 ref에 둔다. 클릭 시점에만 읽는다.
   const guardRef = useRef<UnsavedGuardConfig | null>(null);
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
   const [pending, setPending] = useState<{ href: string; config: UnsavedGuardConfig } | null>(null);
 
   const setGuard = useCallback((config: UnsavedGuardConfig | null) => {
@@ -53,6 +56,14 @@ export function UnsavedGuardProvider({ children }: { children: ReactNode }) {
   const requestNavigate = useCallback((href: string) => {
     const guard = guardRef.current;
     if (!guard) return false;
+
+    // 지금 보고 있는 경로로의 이동은 화면을 떠나지 않는다. 확인할 것이 없다.
+    // 여기서 가로채면 확인 후에도 화면이 그대로 남아 가드 상태가 어긋난다.
+    // 지금 보고 있는 경로로의 이동은 화면을 떠나지 않는다. 확인할 것이 없다.
+    // 여기서 가로채면 확인 후에도 화면이 그대로 남아 가드 상태가 어긋난다.
+    const targetPath = href.split('?')[0]?.split('#')[0] ?? href;
+    if (targetPath === pathnameRef.current) return false;
+
     setPending({ href, config: guard });
     return true;
   }, []);
@@ -75,9 +86,11 @@ export function UnsavedGuardProvider({ children }: { children: ReactNode }) {
         onCancel={() => setPending(null)}
         onConfirm={() => {
           const href = pending?.href;
-          // 떠나기로 했으므로 가드를 풀고 이동한다. 화면이 내려가며 자체 정리도 수행한다.
-          guardRef.current = null;
           setPending(null);
+          // 가드를 여기서 풀지 않는다.
+          // 화면이 내려갈 때 useUnsavedGuard의 cleanup이 해제한다.
+          // 전역으로 미리 풀면 이동이 실제로 일어나지 않았을 때 가드가 사라진 채 남는다.
+          // router.push는 링크 가로채기를 거치지 않으므로 우회가 필요 없다.
           if (href) router.push(href);
         }}
       />

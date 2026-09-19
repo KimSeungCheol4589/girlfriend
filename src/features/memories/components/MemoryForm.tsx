@@ -74,6 +74,13 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
   const summaryRef = useRef<HTMLDivElement>(null);
+  // 첫 오류 필드가 포커스를 받지 못했을 때 상단 요약으로 옮기기 위한 신호.
+  const [summaryFocusTick, setSummaryFocusTick] = useState(0);
+
+  useEffect(() => {
+    if (summaryFocusTick === 0) return;
+    summaryRef.current?.focus();
+  }, [summaryFocusTick]);
 
   // 사진 목록은 개수가 아니라 id 순서로 비교한다.
   // 그래야 순서 변경이나 '1장 빼고 1장 추가'처럼 개수가 같은 변경도 미저장으로 잡힌다.
@@ -91,9 +98,12 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
   /**
    * 이 폼이 만든 미리보기 objectURL의 소유권 추적.
    *
-   * created: 이 폼에서 새로 만든 주소. saved: 저장에 성공해 저장소로 넘긴 주소.
-   * 언마운트 시 created 중 저장소로 넘어가지 않은 것만 해제한다.
-   * 기존 기록에서 온 사진은 created에 없으므로, 편집을 취소해도 해제되지 않는다.
+   * created: PhotoUploader가 이 폼 세션에서 실제로 새로 만든 주소만 담는다.
+   *   기존 기록에서 온 사진(저장소 소유)은 순서 변경·빼기·추가로 목록에 다시 실려 와도 들어오지 않는다.
+   * handedToStore: 저장에 성공해 저장소로 넘긴 주소.
+   *
+   * 언마운트 시 created 중 저장소로 넘기지 않은 것만 해제한다.
+   * 그래서 편집을 취소해도 이미 저장된 사진은 살아 있고, 저장하지 않은 새 사진만 정리된다.
    */
   const createdUrlsRef = useRef<Set<string>>(new Set());
   const handedToStoreRef = useRef<Set<string>>(new Set());
@@ -108,11 +118,8 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
     };
   }, []);
 
-  const handlePhotosChange = (next: DemoPhoto[]) => {
-    for (const photo of next) {
-      if (photo.src.startsWith('blob:')) createdUrlsRef.current.add(photo.src);
-    }
-    setPhotos(next);
+  const registerCreatedUrls = (urls: string[]) => {
+    for (const url of urls) createdUrlsRef.current.add(url);
   };
 
   // DESIGN.md 9: 브라우저를 닫으면 미저장 글은 사라진다. 최소한 확인은 띄운다.
@@ -169,8 +176,9 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
       const target = elementId ? document.getElementById(elementId) : null;
       target?.focus();
       // 사진 영역처럼 포커스를 받지 못하는 대상이면 상단 요약으로 되돌린다.
+      // 요약 블록은 이 렌더에서 처음 생기므로 렌더 후에 포커스를 옮긴다.
       if (!target || document.activeElement !== target) {
-        summaryRef.current?.focus();
+        setSummaryFocusTick((tick) => tick + 1);
       }
       return;
     }
@@ -194,9 +202,10 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
       return;
     }
 
-    // 저장에 성공한 주소는 저장소가 소유한다. 언마운트 정리 대상에서 뺀다.
+    // 저장에 성공해 저장소로 넘긴 주소는 언마운트 정리 대상에서 뺀다.
+    // 이 폼이 만든 것 중 최종 목록에 남은 것만 해당한다.
     for (const photo of photos) {
-      if (photo.src.startsWith('blob:')) handedToStoreRef.current.add(photo.src);
+      if (createdUrlsRef.current.has(photo.src)) handedToStoreRef.current.add(photo.src);
     }
     setSavedId(saved.data.id);
   };
@@ -396,7 +405,8 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
           <div id={FIELD_IDS.photoCount}>
             <PhotoUploader
               photos={photos}
-              onChange={handlePhotosChange}
+              onChange={setPhotos}
+              onCreateObjectUrls={registerCreatedUrls}
               rejected={rejectedPhotos}
               onRejected={setRejectedPhotos}
             />
