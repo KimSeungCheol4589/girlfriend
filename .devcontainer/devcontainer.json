@@ -1,0 +1,57 @@
+{
+  "name": "girlfriend app (Node 22)",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+
+  // 비루트 사용자. Docker 소켓 마운트·privileged·추가 capability를 쓰지 않는다.
+  "remoteUser": "node",
+  "containerUser": "node",
+  "updateRemoteUserUID": true,
+
+  // node_modules와 pnpm 데이터는 호스트와 공유하지 않는다.
+  // ${devcontainerId}는 workspace 경로에서 파생되므로 Worktree마다 볼륨 이름이 다르다.
+  "mounts": [
+    {
+      "source": "girlfriend-node-modules-${devcontainerId}",
+      "target": "${containerWorkspaceFolder}/node_modules",
+      "type": "volume"
+    },
+    {
+      "source": "girlfriend-pnpm-${devcontainerId}",
+      "target": "/home/node/.pnpm",
+      "type": "volume"
+    }
+  ],
+
+  // CI는 넣지 않는다. playwright.config.ts가 process.env.CI로 forbidOnly·retries·
+  // reuseExistingServer를 바꾸므로, 개발 컨테이너에 전역으로 두면 컨테이너 안의 e2e 동작이
+  // 로컬과 달라지고 이미 떠 있는 3001 서버를 재사용하지 못한다. CI 값은 실제 CI에서만 설정한다.
+  "containerEnv": {
+    "PNPM_HOME": "/home/node/.pnpm/home",
+    "COREPACK_HOME": "/home/node/.pnpm/corepack",
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+  "remoteEnv": {
+    "PATH": "${containerEnv:PNPM_HOME}:${containerEnv:PATH}"
+  },
+
+  // 1) 새 볼륨은 root 소유로 마운트된다. 설치 전에 소유자를 node로 바꿔 쓰기 가능하게 한다.
+  // 2) packageManager 필드의 pnpm@11.19.0을 corepack으로 고정한다. 전역 npm 설치를 쓰지 않는다.
+  "onCreateCommand": "sudo chown -R node:node '${containerWorkspaceFolder}/node_modules' /home/node/.pnpm && mkdir -p \"$PNPM_HOME\" \"$COREPACK_HOME\" && corepack enable --install-directory \"$PNPM_HOME\" && corepack prepare pnpm@11.19.0 --activate && pnpm --version",
+
+  "updateContentCommand": "pnpm install --frozen-lockfile",
+  "postCreateCommand": "pnpm exec next --version && pnpm exec tsc --version",
+
+  "forwardPorts": [3001],
+  "portsAttributes": { "3001": { "label": "next dev (UI)", "onAutoForward": "notify" } },
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "bradlc.vscode-tailwindcss"],
+      "settings": {
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "eslint.useFlatConfig": true
+      }
+    }
+  }
+}
