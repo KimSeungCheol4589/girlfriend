@@ -1,0 +1,81 @@
+{
+  "name": "girlfriend app (Node 22)",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+
+  // 비루트 사용자. Docker 소켓 마운트·privileged·추가 capability를 쓰지 않는다.
+  "remoteUser": "node",
+  "containerUser": "node",
+  "updateRemoteUserUID": true,
+
+  // node_modules·pnpm 데이터·.next 빌드 산출물은 호스트와 공유하지 않는다.
+  // ${devcontainerId}는 workspace 경로에서 파생되므로 Worktree마다 볼륨 이름이 다르다.
+  // .next를 분리하는 이유: 컨테이너에서 dev/build를 돌리면 Linux 절대경로 기준 산출물·캐시가
+  // 생기는데, 이것이 바인드 마운트된 호스트 Worktree의 .next를 덮으면 Windows 쪽 dev/start가
+  // 깨진다. 반대로 호스트 산출물이 컨테이너를 오염시키는 것도 막는다.
+  "mounts": [
+    {
+      "source": "girlfriend-node-modules-${devcontainerId}",
+      "target": "${containerWorkspaceFolder}/node_modules",
+      "type": "volume"
+    },
+    {
+      "source": "girlfriend-pnpm-${devcontainerId}",
+      "target": "/home/node/.pnpm",
+      "type": "volume"
+    },
+    {
+      "source": "girlfriend-next-${devcontainerId}",
+      "target": "${containerWorkspaceFolder}/.next",
+      "type": "volume"
+    }
+  ],
+
+  // CI는 넣지 않는다. playwright.config.ts가 process.env.CI로 forbidOnly·retries·
+  // reuseExistingServer를 바꾸므로, 개발 컨테이너에 전역으로 두면 컨테이너 안의 e2e 동작이
+  // 로컬과 달라지고 이미 떠 있는 3001 서버를 재사용하지 못한다. CI 값은 실제 CI에서만 설정한다.
+  "containerEnv": {
+    "PNPM_HOME": "/home/node/.pnpm/home",
+    "COREPACK_HOME": "/home/node/.pnpm/corepack",
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+  // pnpm의 전역 bin 디렉터리는 $PNPM_HOME/bin이다. PATH에 없으면
+  // `pnpm config set --global`이 거부된다. 두 경로를 모두 앞에 둔다.
+  "remoteEnv": {
+    "PATH": "${containerEnv:PNPM_HOME}/bin:${containerEnv:PNPM_HOME}:${containerEnv:PATH}"
+  },
+
+  // 1) 새 볼륨은 root 소유로 마운트된다. 설치 전에 소유자를 node로 바꿔 쓰기 가능하게 한다.
+  // 2) packageManager 필드의 pnpm@11.19.0을 corepack으로 고정한다. 전역 npm 설치를 쓰지 않는다.
+  // 3) pnpm content store를 컨테이너 볼륨 안(/home/node/.pnpm/store)으로 명시 고정한다.
+  //    지정하지 않으면 pnpm이 워크스페이스와 같은 파일시스템에 store를 두려다,
+  //    바인드 마운트된 작업 폴더 안에 .pnpm-store를 만들어 호스트 Worktree를 오염시킨다.
+  //    이 설정은 컨테이너 node 사용자의 pnpm 설정 파일에만 기록된다. lifecycle 명령은
+  //    일회용 컨테이너 안에서만 실행되므로 Windows 호스트의 전역 설정은 바뀌지 않는다.
+  //    store와 node_modules는 서로 다른 볼륨이라 pnpm이 hardlink 대신 복사로 대체한다.
+  //    설치가 조금 느려질 뿐 동작에는 문제가 없고, 격리가 우선이라 이 구성을 유지한다.
+  "onCreateCommand": "sudo chown -R node:node '${containerWorkspaceFolder}/node_modules' '${containerWorkspaceFolder}/.next' /home/node/.pnpm && mkdir -p \"$PNPM_HOME\" \"$PNPM_HOME/bin\" \"$COREPACK_HOME\" /home/node/.pnpm/store && corepack enable --install-directory \"$PNPM_HOME\" && corepack prepare pnpm@11.19.0 --activate && pnpm config set --global storeDir /home/node/.pnpm/store && pnpm --version",
+
+  // confirmModulesPurge는 이 설치 명령에만 붙인다.
+  // 기존 node_modules 볼륨을 남긴 채 rebuild하면 .modules.yaml에 기록된 설정이 지금과 달라
+  // pnpm이 modules 디렉터리 삭제 확인을 묻는데, lifecycle에는 TTY가 없어
+  // ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY로 설치가 멈춘다.
+  // pnpm 11.19.0은 이 키를 전역 설정 파일에 쓰는 것을 거부하므로
+  // (ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY) `pnpm config set --global`을 쓸 수 없다.
+  // CI 환경 변수를 전역으로 켜는 대신, 명령 한 번에만 적용되는 --config 플래그로 좁게 처리한다.
+  "updateContentCommand": "pnpm --config.confirmModulesPurge=false install --frozen-lockfile",
+  "postCreateCommand": "pnpm exec next --version && pnpm exec tsc --version",
+
+  "forwardPorts": [3001],
+  "portsAttributes": { "3001": { "label": "next dev (UI)", "onAutoForward": "notify" } },
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "bradlc.vscode-tailwindcss"],
+      "settings": {
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "eslint.useFlatConfig": true
+      }
+    }
+  }
+}

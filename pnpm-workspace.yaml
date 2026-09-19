@@ -1,0 +1,14 @@
+# pnpm 11부터 설치 스크립트 허용 여부는 package.json이 아니라 이 파일에서 읽는다.
+# 기본값은 전부 차단이며, 허용하는 패키지만 이름으로 명시한다.
+#
+# unrs-resolver: eslint-config-next가 쓰는 import 해석기의 네이티브 모듈.
+#   false로 둔다.
+#   - 플랫폼별 사전 빌드 바인딩(@unrs/resolver-binding-*)이 optionalDependencies로
+#     lockfile에 함께 고정되므로, 설치 스크립트 없이도 해석기가 동작한다.
+#     이 Worktree(win32 x64)에서 `pnpm lint`가 오류 0으로 통과하는 것을 확인했다.
+#   - postinstall을 실행하지 않으면 설치 결과가 lockfile만으로 결정되어
+#     frozen install의 재현성이 높아지고, 설치 시 실행되는 코드도 줄어든다.
+#   - 사전 빌드 바인딩이 없는 플랫폼에서 lint가 해석기 로드 오류로 실패하면
+#     그때 true로 바꾼다. 조용히 넘어가지 않고 오류로 드러난다.
+allowBuilds:
+  unrs-resolver: false

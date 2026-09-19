@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="합성 일러스트: 밤바다 불빛">
+  <defs>
+    <linearGradient id="night04" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3B3550" />
+      <stop offset="60%" stop-color="#5B4C63" />
+      <stop offset="100%" stop-color="#8A6E77" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#night04)" />
+  <g fill="#FBEBD6">
+    <circle cx="120" cy="96" r="3" opacity="0.8" />
+    <circle cx="300" cy="62" r="2.5" opacity="0.6" />
+    <circle cx="470" cy="112" r="3" opacity="0.7" />
+    <circle cx="666" cy="70" r="2.5" opacity="0.55" />
+    <circle cx="712" cy="168" r="2" opacity="0.5" />
+  </g>
+  <circle cx="648" cy="150" r="46" fill="#FBEBD6" opacity="0.9" />
+  <rect y="392" width="800" height="208" fill="#2E2A40" opacity="0.7" />
+  <g fill="#F4C98C" opacity="0.75">
+    <rect x="70" y="330" width="14" height="62" rx="4" />
+    <rect x="140" y="348" width="14" height="44" rx="4" />
+    <rect x="600" y="340" width="14" height="52" rx="4" />
+    <rect x="676" y="356" width="14" height="36" rx="4" />
+  </g>
+  <g stroke="#F4C98C" stroke-width="5" opacity="0.35" stroke-linecap="round">
+    <line x1="120" y1="432" x2="240" y2="432" />
+    <line x1="420" y1="484" x2="580" y2="484" />
+    <line x1="260" y1="534" x2="380" y2="534" />
+  </g>
+</svg>

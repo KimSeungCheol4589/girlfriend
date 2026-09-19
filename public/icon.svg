@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="두 장의 사진이 겹친 앨범 아이콘">
+  <rect width="64" height="64" rx="14" fill="#FBF7F1" />
+  <rect x="12" y="16" width="30" height="30" rx="6" fill="#CBDCC6" transform="rotate(-8 27 31)" />
+  <rect x="22" y="18" width="30" height="30" rx="6" fill="#F0C9CE" transform="rotate(7 37 33)" />
+  <circle cx="43" cy="28" r="4" fill="#8B435A" />
+</svg>

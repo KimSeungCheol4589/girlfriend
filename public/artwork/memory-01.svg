@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="합성 일러스트: 노을빛 강가 산책">
+  <defs>
+    <linearGradient id="sky01" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F7D7C4" />
+      <stop offset="55%" stop-color="#EFB9AE" />
+      <stop offset="100%" stop-color="#C98A93" />
+    </linearGradient>
+    <linearGradient id="water01" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C08A93" />
+      <stop offset="100%" stop-color="#8C6675" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#sky01)" />
+  <circle cx="588" cy="212" r="74" fill="#FBE9D8" opacity="0.85" />
+  <path d="M0 404 L150 344 L286 396 L430 330 L566 392 L698 340 L800 380 L800 600 L0 600 Z" fill="#B57E88" opacity="0.55" />
+  <rect y="430" width="800" height="170" fill="url(#water01)" />
+  <g fill="#FBE9D8" opacity="0.5">
+    <rect x="120" y="470" width="180" height="6" rx="3" />
+    <rect x="360" y="506" width="240" height="6" rx="3" />
+    <rect x="200" y="544" width="150" height="6" rx="3" />
+  </g>
+</svg>

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="합성 일러스트: 창가 자리의 커피 두 잔">
+  <defs>
+    <linearGradient id="room02" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F6EFE3" />
+      <stop offset="100%" stop-color="#E4D3BE" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#room02)" />
+  <rect x="96" y="60" width="270" height="330" rx="18" fill="#CFE0D6" opacity="0.75" />
+  <rect x="418" y="60" width="270" height="330" rx="18" fill="#CFE0D6" opacity="0.5" />
+  <rect x="0" y="404" width="800" height="196" fill="#B98F6E" opacity="0.35" />
+  <g>
+    <ellipse cx="300" cy="452" rx="84" ry="24" fill="#8C6A52" opacity="0.25" />
+    <path d="M232 380 h136 l-14 68 h-108 Z" fill="#FFFDF8" />
+    <path d="M368 396 a30 30 0 0 1 0 40" fill="none" stroke="#FFFDF8" stroke-width="12" />
+  </g>
+  <g>
+    <ellipse cx="520" cy="470" rx="92" ry="26" fill="#8C6A52" opacity="0.25" />
+    <path d="M446 392 h148 l-16 74 h-116 Z" fill="#F3E4D2" />
+  </g>
+</svg>
