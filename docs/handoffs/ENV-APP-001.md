@@ -2,151 +2,46 @@
 
 - 작업: Node 22·pnpm 고정·Next.js 골격·Dev Container 설정·설치/build 검증
 - 브랜치: feat/ui-foundation
-- 기준 커밋: f073d1f (이 세션은 커밋하지 않았다)
-- 구현 세션 ID: `c11ca53a-79f5-4ea1-ab2c-6992f28faf08` (로컬 Claude Code 구현 세션)
-- 상태: **부분 완료.** Dev Container 항목만 도구 권한 거부로 미완료
-- 독립 검토 이력:
-  - 1차 `0754e14e-3e39-4c98-bb31-5f2042f6cef1` (head `240a783`) → changes_requested. 환경 범위 지적(P3-7·P3-8)은 아래 4-2에서 해소했다.
-  - 2차 `84164c00-37ae-4dd1-a783-3de8a797d534` (head `9889af5`) → changes_requested. 지적 2건(R-1·R-2)은 모두 UI 범위이며 [UI-001 §10-2](./UI-001.md)에서 해소했다. 환경 범위 추가 지적은 없었고, `.devcontainer` 부재는 지시에 따라 결함으로 보고되지 않았다.
-  - 현재 수정본에 대한 **3차 검토는 아직 실행되지 않았다.**
+- 상태: 구현·실제 컨테이너 검증 완료, 독립 검토 결과 대기
+- 최종 환경 코드 검토 대상: d429216a9d68f67b13fbb76f6c5d6df9f9d7a641
+- 기존 Claude 구현 세션: c11ca53a-79f5-4ea1-ab2c-6992f28faf08
 
-## 1. 변경 요약
+## 변경과 검증
 
-빈 저장소에 Next.js App Router + TypeScript + Tailwind 앱의 기반을 만들었다.
-UI 구현 내용은 [UI-001 보고서](./UI-001.md), 환경 상세는 [docs/environments/APP.md](../environments/APP.md)에 있다.
+Next.js 앱 골격·lockfile·검사 스크립트와 홈·추억·꾸미기 데모 UI는 앞선 제출에서 완료했다. 이번 후속 제품 변경은 .devcontainer/devcontainer.json 하나다. 실제 설정 파일을 기존 Claude가 작성했고, Codex가 파일별 정상 승인과 검증·커밋을 관리했다. Codex가 제품 코드를 대신 작성하지 않았다.
 
-**커밋·push를 하지 않았다.** 아래 파일은 작업 트리에 존재만 하며 `pnpm-lock.yaml`도 아직 커밋되지 않았다. 커밋은 총괄이 수행한다.
+보호 경로에 대한 dontAsk 거부 원인을 확인했다. 대화형 CLI는 초기 환경 설정 화면에서 종료하고 공식 SDK 기본 권한 모드의 개별 승인 요청을 사용했다. 정확한 Write/Edit 내용을 검토해 일회 승인했으며 호스트 전역 설정이나 권한 우회 플래그를 사용하지 않았다. 입력이 닫힌 최초 SDK 실행은 파일 승인 전에 종료했다. 원시 실행·승인 로그는 git에서 제외한 .agent-runtime에 있다.
 
-## 2. 추가·변경한 파일 (환경 범위)
-
-```text
-package.json            스크립트·의존성·packageManager pnpm@11.19.0·engines node >=22
-pnpm-lock.yaml          의존성 고정 (386 패키지, 미커밋)
-pnpm-workspace.yaml     설치 스크립트 정책. allowBuilds.unrs-resolver: false 로 확정
-tsconfig.json           strict, noUncheckedIndexedAccess, @/* 별칭
-next.config.mjs         reactStrictMode, 원격 이미지 호스트 없음, build 중 lint 분리
-tailwind.config.ts      CSS 변수 색상, max-w-content 1120px, spacing.touch 44px
-postcss.config.mjs      tailwindcss + autoprefixer
-eslint.config.mjs       flat config + next/core-web-vitals, next/typescript
-vitest.config.ts        node 환경, tests/unit만 포함
-playwright.config.ts    모바일/데스크톱 프로젝트, webServer로 next dev 3001 기동
-tests/smoke/http-smoke.mjs   로컬 HTTP 상태 코드·문구 확인 스크립트
-.gitignore              next-env.d.ts, /test-results, /playwright-report 등 추가
-
-삭제: vitest.config.mts (중복 설정 파일)
-미생성: .devcontainer/devcontainer.json (아래 4-1)
-```
-
-## 3. 실행한 검증과 결과
-
-### 1차 (앱 골격·UI 구현 직후)
+초기 실제 기동에서 pnpm store가 호스트로 유출되는 문제를 발견해 컨테이너 전용 storeDir로 고쳤다. 이후 초기화 중 발견한 PNPM_HOME/bin PATH 누락도 Claude가 수정했다. 최종 설정으로 새 컨테이너를 생성해 재검증했다.
 
 | 검증 | 결과 |
 | --- | --- |
-| `node --version` | v22.22.3 |
-| 고정 pnpm 실행 | 11.19.0 |
-| `pnpm install` | 386개 패키지 설치 성공 |
-| `pnpm run typecheck` | 통과 (오류 0) |
-| `pnpm run lint` | 통과 (오류·경고 0) |
-| `pnpm run test` | **90개** 테스트 통과 |
-| `pnpm run build` | 성공, 9개 라우트 |
-| `pnpm run test:smoke` | **14건** 통과 |
-| `pnpm run test:e2e` | 모바일·데스크톱 **14건** 통과 |
-| `pnpm install --frozen-lockfile --offline` | 내용 통과, `allowBuilds` 미확정으로 종료 코드 1 |
+| Docker / Dev Container CLI | 29.6.1 / 0.89.0, 생성·기동·lifecycle 모두 성공 |
+| 사용자 / Node / pnpm | node UID 1000 / 22.16.0 / 11.19.0 |
+| 설치 | frozen 신규 설치와 frozen/offline 재설치 통과 |
+| store 격리 | /home/node/.pnpm/store/v11, 호스트 .pnpm-store 없음 |
+| 타입·lint·단위 테스트·production build | 통과, 단위 테스트 110개 |
+| production HTTP smoke | 14개 통과, 검증 서버 종료 |
+| 컨테이너 실제 설정 | 비루트, privileged=false, 소켓 마운트 없음, 호스트 포트 publish 없음 |
 
-### 2차 (설치 정책 확정·커버 미리보기·오류 코드 정리 후)
+상세 실행·재개 방법과 범위는 [앱 환경 문서 10절](../environments/APP.md)에 있다. 첫 실행에서 생성된 호스트 캐시는 무시된 임시 폴더에 보관했다. 다른 작업의 DB 컨테이너는 변경하지 않았다.
 
-| 검증 | 결과 |
-| --- | --- |
-| `pnpm install --frozen-lockfile --offline` | **종료 코드 0** |
-| `pnpm run typecheck` | 통과 (오류 0) |
-| `pnpm run lint` | 통과 (오류·경고 0) |
-| `pnpm run test` | 6개 파일 **107개** 테스트 통과 |
-| `pnpm run build` | 성공, 9개 라우트 |
-| `pnpm run test:smoke` | **14건** 통과 |
-| `pnpm run test:e2e` | 모바일·데스크톱 **22건** 통과 |
-| 서버 프로세스 정리 | 3001 리스너 종료 확인 |
+## 검토 이력
 
-### 3차 (독립 검토 지적 수정 후 — 현재 상태)
+- UI 기반 1·2차 독립 검토에서 발견한 문제를 수정했다. 상세는 [UI-001](./UI-001.md).
+- UI 최종 제품 87d99e4ab6f87da70e9a551efb2f280dda3f8268은 새 읽기 전용 Claude 세션 cd237114-7d04-438b-ba4f-5ee44d47e9d5가 승인했다.
+- 이번 컨테이너 변경은 기준 95221682e5c3dc00562f4de0a245dc5f581b6c52부터 최종 d429216a9d68f67b13fbb76f6c5d6df9f9d7a641까지 별도 새 읽기 전용 Claude 호출로 검토 중이다.
 
-| 검증 | 결과 |
-| --- | --- |
-| `pnpm run typecheck` | 통과 (오류 0) |
-| `pnpm run lint` | 통과 (오류·경고 0) |
-| `pnpm run test` | **110개** 통과 |
-| `pnpm run build` | 성공, 9개 라우트 |
-| `pnpm run test:smoke` | **14건** 통과 |
-| `pnpm run test:e2e` | 모바일·데스크톱 **38건** 통과 |
-| 서버 프로세스 정리 | 3001 리스너 종료 확인 |
+## 미실행·제한
 
-1·2차의 107 unit / 22 e2e / 14 HTTP는 수정 **이전** 수치다. UI 쪽 지적 해소 내역은 [UI-001 §10](./UI-001.md)에 있다.
+- Dockerfile을 별도로 빌드하는 구성이 아니라 공식 Node 22 이미지를 사용한다. 이미지 digest는 고정하지 않아 향후 Node 패치 버전은 달라질 수 있다.
+- 컨테이너 내부 Playwright 브라우저, VS Code 확장 설치 및 실제 포트 포워딩은 미검증이다. UI의 기존 호스트 Chromium 검증과 구분한다.
+- Windows worktree 외부 Git 메타데이터를 마운트하지 않는다. Git 작업은 호스트에서 수행한다.
+- 로그인·실제 저장·사진 업로드·배포는 이번 후속 범위 밖이다.
+- Vite 설정의 기존 CommonJS 경고는 남아 있으나 테스트는 통과한다.
 
-### 4차 (2차 검토 R-1·R-2 수정 후 — 현재 상태)
+## 통합 준비
 
-| 검증 | 결과 |
-| --- | --- |
-| `pnpm run typecheck` | 통과 (오류 0) |
-| `pnpm run lint` | 통과 (오류·경고 0) |
-| `pnpm run test` | **110개** 통과 (변경 없음) |
-| `pnpm run build` | 성공, 9개 라우트 |
-| `pnpm run test:e2e --grep "R-1\|P2-3\|P2-4"` | 모바일·데스크톱 **18건 통과** |
+컨테이너 구현과 필수 실행 검증은 완료했다. 별도 독립 검토 결과를 받은 뒤 통합 가능 여부를 확정한다. main/dev 직접 통합은 수행하지 않는다.
 
-영향받지 않는 나머지 e2e와 HTTP smoke는 이번에 다시 실행하지 않았다.
-Playwright를 기본 7 워커로 돌리면 개발 서버 동시 컴파일 부하로 무더기 타임아웃이 난다. `--workers=2`로 실행한다.
-
-### 미실행 검증 (통과로 취급하지 않음)
-
-- **Dev Container 빌드·기동·볼륨·비루트 사용자·pnpm 고정 전부.** 설정 파일을 만들지 못해 검증 대상이 없다. Docker 명령도 실행하지 않았다.
-- Firefox·WebKit, 실기기 브라우저, 접근성 자동 검사.
-- Supabase·인증·업로드·배포·CI 관련 검증 전부. 이번 범위 밖이다.
-
-## 4. 잔여 문제
-
-### 4-1. `.devcontainer/devcontainer.json` 생성 거부 — 미완료
-
-권한이 확장됐다는 안내를 받은 뒤 다시 시도했으나 동일하게 거부됐다. 지시에 따라 추가 시도를 중단했다.
-
-```
-Write  C:\Users\aica_\.codex\worktrees\863f\private\.devcontainer\devcontainer.json
-→ Permission to use Write has been denied (don't ask mode)
-```
-
-총 3회 시도, 모두 거부. 작성하려던 파일 전문과 요구사항 대응표는
-[APP.md 7-1](../environments/APP.md#7-1-devcontainerdevcontainerjson-미생성--여전히-차단됨)에 남겼다.
-요약: 비루트 `node` 사용자, `${devcontainerId}`로 Worktree마다 갈리는 node_modules·pnpm 볼륨,
-`sudo chown`으로 볼륨 쓰기 권한 확보, `corepack prepare pnpm@11.19.0 --activate`,
-`pnpm install --frozen-lockfile`, 포트 3001, Docker 소켓·privileged 없음.
-
-파일 생성 후 **실제 컨테이너 빌드·기동까지 수행해야** 이 항목을 완료로 볼 수 있다.
-
-### 4-2. 해결된 항목
-
-| 이전 문제 | 조치 |
-| --- | --- |
-| `pnpm-workspace.yaml` 자리표시자로 `pnpm install` 종료 코드 1 | `allowBuilds.unrs-resolver: false`로 확정. 근거는 APP.md 1절. frozen/offline 설치 종료 코드 0 확인 |
-| `vitest.config.mts` 중복 파일 | 삭제. 실제 설정은 `vitest.config.ts` 하나 |
-| 검토 P3-7: 제안 설정의 전역 `containerEnv.CI` | 제거. `process.env.CI`에 따라 Playwright의 `forbidOnly`·`retries`·`reuseExistingServer`가 달라지므로 개발 컨테이너에 두지 않는다. 필요 시 pnpm의 `confirmModulesPurge=false`만 좁게 적용한다 |
-| 검토 P3-8: worktree의 Git 메타데이터가 컨테이너에 없음 | 넓은 마운트를 추가하지 않는다. 컨테이너는 앱 실행·설치·build·lint·typecheck·test용이고, 커밋·브랜치·push 등 Git 작업은 호스트(Windows)에서 수행한다고 APP.md 7-1에 명시했다. 컨테이너 안에서 Git까지 쓰려면 worktree가 아닌 일반 체크아웃을 사용한다 |
-
-### 4-3. 참고 사항
-
-- `vitest.config.ts`의 Vite CommonJS 경고가 남아 있다. 경고이며 실행에 영향 없음.
-- 설치 시 `eslint@9.39.5` 지원 종료 안내가 출력된다. `eslint-config-next@15.5.25`의 peer 상한이 9라서 의도한 조합이다.
-- `pnpm run <script>`는 PATH의 다른 pnpm(내장 Node 24)을 불러 `Unsupported engine` 경고를 낼 수 있다. 검증은 `--config.verify-deps-before-run=false`로 Node 22에서 실행했다.
-- `test:e2e`는 `next dev`를 띄우므로 `.next`가 개발 빌드로 바뀐다. 이후 `start`를 쓰려면 `build`를 다시 실행해야 한다.
-
-## 5. 후속 작업
-
-1. 총괄이 정상 승인 경로를 확인한 뒤 Claude에 `.devcontainer/devcontainer.json` 구현을 재배정하고 컨테이너 빌드·기동을 검증한다. Codex가 대신 작성하지 않는다.
-2. 제품 변경과 pnpm-lock.yaml 커밋 완료. 검토된 제품 HEAD는 87d99e4ab6f87da70e9a551efb2f280dda3f8268이다.
-3. 새 독립 검토 3차까지 완료했고 최종 제품 변경은 승인됐다. Dev Container 파일 부재와 컨테이너 미검증은 별도 차단이다.
-
-## 6. 통합 준비 여부
-
-앱 골격·의존성·설치 정책·검증 스크립트는 통합 가능한 상태다.
-**Dev Container 항목이 미완료이므로 ENV-APP-001 전체를 완료로 표시하면 안 된다.**
-제품 변경 독립 검토는 완료됐다. 컨테이너 항목이 해결될 때까지 ENV-APP-001은 검토 대기다.
-
-## 최종 제품 검토 증거
-
-제품 HEAD `87d99e4ab6f87da70e9a551efb2f280dda3f8268`은 새 읽기 전용 Claude 세션 `cd237114-7d04-438b-ba4f-5ee44d47e9d5`에서 차단 결함 없음으로 승인됐다. 1·2차 지적 및 해결·최종 검증의 상세 기록은 [UI-001](UI-001.md)의 Codex 최종 기록을 따른다. 이 기록은 Dev Container 파일 생성·컨테이너 실행 성공을 뜻하지 않는다. 정상 승인 경로와 후속 Claude 구현이 필요하다.
+1차 환경 독립 검토 ecffae53-1747-4bf2-b50b-abe9db5204fa의 P2 4건은 설치 명령별 confirmModulesPurge 옵션, .next 전용 볼륨, fallback store 무시 및 문서 정리로 처리했다. 추천된 전역 confirmModulesPurge 설정은 pnpm 11이 거부해 명령 옵션으로 수정하고 실제 지원을 확인했다. 기존 볼륨을 유지한 최종 컨테이너 재생성·lifecycle이 통과했다. 수정본은 별도의 새 읽기 전용 검토 대상으로 제출한다.

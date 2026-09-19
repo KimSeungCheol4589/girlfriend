@@ -6,8 +6,7 @@
 이 문서는 저장소에 실제로 생성한 Next.js 앱의 환경 구성과 **직접 실행해서 확인한 결과**를 적는다.
 실행하지 않은 검증은 아래 ‘미실행 검증’에 그대로 남긴다.
 
-> 이 세션은 커밋·push를 하지 않았다. 아래 파일은 모두 작업 트리에 생성만 되어 있고 아직 커밋되지 않았다.
-> `pnpm-lock.yaml`도 생성만 된 상태이며 커밋은 총괄이 수행한다.
+> 최신 상태: 앱·lockfile은 커밋 및 push 완료했다. Dev Container 설정도 Claude가 생성했고 실제 검증을 통과했다. 아래 1~9절은 초기 구현·검토 이력이며 당시 미커밋·컨테이너 미생성 표현은 맨 아래 10절의 최신 결과로 대체된다.
 
 ## 1. 런타임과 패키지 매니저
 
@@ -15,7 +14,7 @@
 | --- | --- | --- |
 | Node.js | v22.22.3 | `node --version` 실행 확인 |
 | 패키지 매니저 | pnpm 11.19.0 | `package.json`의 `"packageManager": "pnpm@11.19.0"`, 로컬 pnpm 실행 확인 |
-| lockfile | `pnpm-lock.yaml` 생성됨 (미커밋) | `pnpm install --frozen-lockfile --offline` 종료 코드 0 |
+| lockfile | `pnpm-lock.yaml` 생성됨 (커밋됨) | `pnpm install --frozen-lockfile --offline` 종료 코드 0 |
 | node_modules | Worktree 안에 개별 설치 | 다른 Worktree와 공유·복사하지 않음 |
 | store / cache | `.agent-runtime/` 아래 (Git 제외) | 설치 명령에 경로를 인자로 전달 |
 
@@ -97,7 +96,7 @@ allowBuilds:
 
 ```text
 package.json          스크립트·의존성·packageManager·engines
-pnpm-lock.yaml        의존성 고정 (미커밋)
+pnpm-lock.yaml        의존성 고정 (커밋됨)
 pnpm-workspace.yaml   설치 스크립트 허용 정책 (allowBuilds.unrs-resolver: false)
 tsconfig.json         strict + noUncheckedIndexedAccess, @/* 별칭
 next.config.mjs       strict mode, 원격 이미지 호스트 없음
@@ -182,7 +181,6 @@ Playwright 브라우저는 `pnpm exec playwright install chromium`으로 내려�
 
 | 항목 | 이유 / 재개 조건 |
 | --- | --- |
-| **Dev Container 전체 (빌드·기동·볼륨·비루트 사용자·pnpm 고정)** | `.devcontainer/devcontainer.json` 파일을 끝내 만들지 못했다(아래 7-1). 설정 파일이 없으므로 Docker 검증도 수행하지 않았다. Docker 엔진 자체의 가용 여부와 무관하게 검증 대상이 존재하지 않는다 |
 | Firefox·WebKit | Chromium만 설치·실행했다 |
 | 실기기 모바일 확인 | 에뮬레이션 뷰포트(Pixel 7, 1280×900)만 사용했다 |
 | 접근성 자동 검사(axe 등)·스크린 리더 | 도구를 도입하지 않았다. 포커스·라벨·대비는 코드와 단위 테스트 수준까지만 확인 |
@@ -193,111 +191,9 @@ Playwright 브라우저는 `pnpm exec playwright install chromium`으로 내려�
 
 ## 7. 남은 문제와 후속 작업
 
-### 7-1. `.devcontainer/devcontainer.json` 미생성 — 여전히 차단됨
+### 7-1. Dev Container 구현·검증
 
-권한이 열렸다는 안내를 받은 뒤 한 번 더 시도했으나 같은 이유로 거부됐다.
-지시에 따라 이 경로에 대한 추가 시도는 중단했다.
-
-```
-Write  C:\Users\aica_\.codex\worktrees\863f\private\.devcontainer\devcontainer.json
-→ Permission to use Write has been denied (don't ask mode)
-```
-
-총 3회 시도, 모두 거부. 파일이 없으므로 컨테이너 빌드·기동 검증도 하지 않았다.
-
-작성하려던 내용은 아래와 같다. 요구사항 대응을 확인할 수 있도록 전문을 남긴다.
-
-```jsonc
-{
-  "name": "girlfriend app (Node 22)",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
-
-  // 비루트 사용자. Docker 소켓 마운트·privileged·추가 capability를 쓰지 않는다.
-  "remoteUser": "node",
-  "containerUser": "node",
-  "updateRemoteUserUID": true,
-
-  // node_modules와 pnpm 데이터는 호스트와 공유하지 않는다.
-  // ${devcontainerId}는 workspace 경로에서 파생되므로 Worktree마다 볼륨 이름이 다르다.
-  "mounts": [
-    {
-      "source": "girlfriend-node-modules-${devcontainerId}",
-      "target": "${containerWorkspaceFolder}/node_modules",
-      "type": "volume"
-    },
-    {
-      "source": "girlfriend-pnpm-${devcontainerId}",
-      "target": "/home/node/.pnpm",
-      "type": "volume"
-    }
-  ],
-
-  // CI는 넣지 않는다. playwright.config.ts가 process.env.CI로 forbidOnly·retries·
-  // reuseExistingServer를 바꾸므로, 개발 컨테이너에 전역으로 두면 컨테이너 안의 e2e 동작이
-  // 로컬과 달라지고 이미 떠 있는 3001 서버를 재사용하지 못한다. CI 값은 실제 CI에서만 설정한다.
-  "containerEnv": {
-    "PNPM_HOME": "/home/node/.pnpm/home",
-    "COREPACK_HOME": "/home/node/.pnpm/corepack",
-    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
-    "NEXT_TELEMETRY_DISABLED": "1"
-  },
-  "remoteEnv": {
-    "PATH": "${containerEnv:PNPM_HOME}:${containerEnv:PATH}"
-  },
-
-  // 1) 새 볼륨은 root 소유로 마운트된다. 설치 전에 소유자를 node로 바꿔 쓰기 가능하게 한다.
-  // 2) packageManager 필드의 pnpm@11.19.0을 corepack으로 고정한다. 전역 npm 설치를 쓰지 않는다.
-  "onCreateCommand": "sudo chown -R node:node '${containerWorkspaceFolder}/node_modules' /home/node/.pnpm && mkdir -p \"$PNPM_HOME\" \"$COREPACK_HOME\" && corepack enable --install-directory \"$PNPM_HOME\" && corepack prepare pnpm@11.19.0 --activate && pnpm --version",
-
-  "updateContentCommand": "pnpm install --frozen-lockfile",
-  "postCreateCommand": "pnpm exec next --version && pnpm exec tsc --version",
-
-  "forwardPorts": [3001],
-  "portsAttributes": { "3001": { "label": "next dev (UI)", "onAutoForward": "notify" } },
-
-  "customizations": {
-    "vscode": {
-      "extensions": ["dbaeumer.vscode-eslint", "bradlc.vscode-tailwindcss"],
-      "settings": {
-        "typescript.tsdk": "node_modules/typescript/lib",
-        "eslint.useFlatConfig": true
-      }
-    }
-  }
-}
-```
-
-요구사항 대응:
-
-| 요구사항 | 대응 |
-| --- | --- |
-| 비루트 Node 22 | `typescript-node:1-22-bookworm` + `remoteUser`/`containerUser: node`, `updateRemoteUserUID` |
-| Worktree별 고유 볼륨 | `girlfriend-node-modules-${devcontainerId}`, `girlfriend-pnpm-${devcontainerId}` |
-| 볼륨 쓰기 권한 | `onCreateCommand`의 `sudo chown -R node:node` (새 볼륨은 root 소유로 마운트되므로 필요) |
-| pnpm 고정 기동 | `corepack prepare pnpm@11.19.0 --activate` 후 `pnpm --version` 확인 |
-| 신뢰 가능한 의존성 초기화 | `updateContentCommand: pnpm install --frozen-lockfile`, `postCreateCommand`로 실행 확인 |
-| Docker 소켓·privileged 없음 | `mounts`에 소켓 없음, `runArgs`·`privileged` 항목 자체가 없음 |
-| CI 환경 변수 없음 | `containerEnv`에 `CI`를 넣지 않는다. e2e 동작이 로컬과 같아진다 |
-
-`updateContentCommand`는 비대화형으로 실행된다. 혹시 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`가
-나오면 `CI` 같은 광범위한 환경 변수 대신 pnpm의 `confirmModulesPurge=false` 설정만 좁게 적용한다.
-
-### 이 컨테이너로 할 수 있는 일과 없는 일
-
-컨테이너는 **앱 실행과 검증용**이다. 설치·`dev`·`build`·`lint`·`typecheck`·`test`는 컨테이너 안에서 수행할 수 있다.
-
-**Git 명령은 컨테이너 안에서 동작하지 않는다.** 이 작업 폴더는 Windows 쪽 상위 저장소에 딸린 git worktree라
-`.git`이 디렉터리가 아니라 상위 저장소의 `.git/worktrees/...`를 가리키는 파일이다.
-위 설정은 워크스페이스 폴더만 마운트하므로 컨테이너 안에는 그 상위 경로가 존재하지 않는다.
-
-이 제약은 **의도한 것이다.** 상위 저장소 `.git`을 추가로 마운트하면 컨테이너에 저장소 전체 이력과
-자격 증명 설정까지 노출되므로, 넓은 마운트를 추가하지 않는다.
-
-따라서 **커밋·브랜치·push 등 Git 작업은 호스트(Windows)에서 수행한다.**
-AGENTS.md의 "담당 브랜치에 커밋" 절차는 호스트 기준이다.
-컨테이너 안에서 Git까지 쓰려면 worktree가 아닌 일반 체크아웃에서 Dev Container를 사용한다.
-
-이 파일을 만든 뒤 **실제 컨테이너 빌드·기동까지 수행해야** ENV-APP-001의 Dev Container 항목을 완료로 볼 수 있다.
+설정 파일 생성과 실행 검증은 완료했다. 이전 미생성·권한 차단 기록은 해소됐다. 실제 설정은 저장소의 .devcontainer/devcontainer.json이며 최신 실행 결과와 제약은 10절을 따른다.
 
 ### 7-2. 해결된 항목
 
@@ -315,10 +211,42 @@ AGENTS.md의 "담당 브랜치에 커밋" 절차는 호스트 기준이다.
 ## 8. 기존 문서와의 관계
 
 - [UI 환경 문서](./UI.md)의 “실제 앱 의존성 설치, Next.js 개발 서버·브라우저 UI, lint·타입·build는 앱 미생성으로 미실행”이라는 기록은 ENV-UI-001 시점 상태다. 이 문서의 5절 결과가 그 이후 상태다. UI.md는 이 작업의 소유 범위가 아니어서 수정하지 않았다.
-- [개발환경 문서](../DEVELOPMENT_ENVIRONMENT.md)의 ‘재현 가능한 컨테이너’ 항목은 여전히 미완료다. 6·7절을 참고한다.
+- [개발환경 문서](../DEVELOPMENT_ENVIRONMENT.md)의 ‘재현 가능한 컨테이너’ 과거 미완료 기록은 10절의 검증 결과로 대체된다.
 
 ## 9. 공식 참고
 
 - [Next.js 설치 요구사항](https://nextjs.org/docs/app/getting-started/installation)
 - [Dev Container 설정 참조](https://containers.dev/implementors/json_reference/)
 - [pnpm 설정 위치 변경](https://pnpm.io/settings)
+
+## 10. Dev Container 최종 실행 검증
+
+설정: [.devcontainer/devcontainer.json](../../.devcontainer/devcontainer.json). 검토 대상 커밋은 d429216a9d68f67b13fbb76f6c5d6df9f9d7a641이다. 이 절이 6·7절의 과거 미완료 기록을 대체한다.
+
+기존 Claude 구현 세션이 공식 SDK 기본 권한 모드에서 파일을 생성·수정했다. 정확한 Write/Edit 요청을 확인하고 일회 승인했다. 보호 경로에서 dontAsk가 거부하던 문제를 정상 승인 절차로 해결했으며 호스트 전역 설정·권한 우회 플래그·광범위한 allow 규칙은 사용하지 않았다. 대화형 CLI는 초기 환경 설정 화면에서 종료했다. [공식 승인 흐름](https://code.claude.com/docs/en/agent-sdk/user-input)
+
+| 실제 검증 | 결과 |
+| --- | --- |
+| Dev Container CLI 0.89.0 / Docker 29.6.1 | 공식 이미지로 생성·기동 및 모든 lifecycle 명령 성공 |
+| 사용자 / 런타임 | node, UID 1000 / Node 22.16.0 / pnpm 11.19.0 |
+| 볼륨 | Worktree별 node_modules와 /home/node/.pnpm 전용 볼륨 |
+| pnpm store | /home/node/.pnpm/store/v11, 호스트 .pnpm-store 재생성 없음 |
+| 설치 | frozen 신규 설치 및 frozen/offline 재설치 성공 |
+| 타입 / lint / 단위 테스트 / build | 모두 통과, 단위 테스트 110개 |
+| 프로덕션 HTTP smoke | 14개 통과, 검증 서버 종료 |
+| 실제 격리 설정 | privileged=false, Docker 소켓 없음, 호스트 포트 publish 없음 |
+
+초기 기동은 성공했지만 pnpm의 파일시스템 자동 선택으로 호스트에 .pnpm-store가 생겼다. 컨테이너 내부 사용자 설정에만 storeDir를 명시했고, pnpm 11이 요구하는 PNPM_HOME/bin을 PATH에 추가했다. 첫 실행 캐시는 무시된 임시 디렉터리로 이동했다. 최종 설정에서 두 문제를 재검증했다. 컨테이너 내부 pnpm config set --global은 Windows 사용자 설정을 변경하지 않는다.
+
+로컬에 설치한 Dev Container CLI 또는 VS Code Dev Containers로 실행한다:
+
+```sh
+devcontainer up --workspace-folder . --mount-workspace-git-root false
+devcontainer exec --workspace-folder . pnpm run dev
+```
+
+3001은 VS Code 포워딩 대상이다. CLI 실행만으로 호스트 포트가 자동 publish되지는 않는다. Windows worktree의 외부 Git 메타데이터는 마운트하지 않으므로 커밋·브랜치·push는 호스트에서 수행한다. 이미지 태그는 Node 22 계열이며 digest는 고정하지 않았다. 이미지 갱신 시 패치 버전은 바뀔 수 있다. 별도 Dockerfile 빌드, VS Code 확장 설치·포트 포워딩 실사용, 컨테이너 내 Playwright 브라우저 검증은 미실행이다. UI 검증 결과는 UI-001을 따른다.
+
+운영 시 devcontainer exec를 사용한다. 순수 docker exec는 remoteEnv.PATH를 적용하지 않는다. 초기화 실패 시 이를 먼저 해결하고 up을 다시 실행한 뒤 설치한다. 호스트에서 lockfile을 변경하면 컨테이너에서 pnpm install --frozen-lockfile을 다시 실행한다. .next는 별도 볼륨이며 tsconfig.tsbuildinfo와 test-results는 공유되므로 호스트와 컨테이너에서 검사를 동시에 실행하지 않는다. 검증 후 앱 컨테이너는 중지했고 볼륨은 재개용으로 유지했다. 완전히 폐기할 때는 해당 Worktree 라벨로 컨테이너 ID와 마운트 볼륨명을 확인하고 그 컨테이너 및 볼륨만 제거한다. 다른 작업의 볼륨이나 전체 prune 명령을 사용하지 않는다.
+
+독립 검토 ecffae53-1747-4bf2-b50b-abe9db5204fa의 ENV-3-1~4 후속: 설치 명령에만 --config.confirmModulesPurge=false 적용, .next 전용 볼륨과 소유권 초기화 추가, fallback /.pnpm-store/ 무시, 오래된 상태·설정 전문 제거 및 최신 보고 갱신. pnpm 11은 해당 옵션을 전역 config.yaml에 저장하는 것을 거부하므로 명령 범위로 적용했다. 기존 볼륨을 유지한 컨테이너 재생성에서 모든 lifecycle 성공을 확인했다. 수동 비대화형 재설치도 pnpm --config.confirmModulesPurge=false install --frozen-lockfile을 사용한다. 초기화 실패 시 설정 완료 전 설치를 수동으로 실행하지 않는다.
