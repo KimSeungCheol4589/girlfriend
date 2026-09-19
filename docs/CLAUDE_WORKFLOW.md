@@ -52,4 +52,3 @@ $taskPrompt | & $taskClaudeExe -p --output-format json --tools 'Read,Glob,Grep,E
 
 - [Claude CLI 명령과 플래그](https://code.claude.com/docs/en/cli-reference)
 - [Claude 프로그램 호출](https://code.claude.com/docs/en/headless)
-
