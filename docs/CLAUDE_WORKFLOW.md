@@ -1,10 +1,10 @@
 # Codex–Claude 협업 실행 절차
 
-## 현재 지정 세션 연결
+## 현재 실행 방식
 
-사용자가 기존 Claude 데스크톱 세션을 지정했다. 총괄만 공식 `claude -p <메시지> --cloud <세션ID>` 방식으로 해당 세션에 메시지를 전달한다. 대상 ID와 연결 확인 상태는 git에서 제외된 총괄 로컬 `.agent-runtime/claude-target.json`에서 관리한다. 이는 신규 클라우드 세션 생성 요청이 아니다.
+2026-09-19 사용자가 로컬 Claude Code 신규 구현·독립 검토 세션을 승인했다. 기존 클라우드 세션 전용 지시를 대체한다. 총괄은 기존 클라우드 배정을 철회했고, 담당 Codex 작업이 각 Worktree에서 CLI 실행 결과를 수집한다. 전송 성공만으로 실행 완료를 판단하지 않는다.
 
-2026-09-19 연결 확인 메시지 전송이 성공했다. 이 명령은 응답을 기다리지 않고 종료하므로 전송 성공을 구현 완료나 프로젝트 확인으로 취급하지 않는다. 세션 답변 또는 확인 가능한 저장소 산출물로 실제 결과를 검증한다. 담당 Codex 작업들은 새 로컬 Claude 호출을 보류한다. 아래 로컬 호출 절차는 최초 구성의 참고이며, 지정 세션 지시가 우선한다.
+먼저 도구 없는 짧은 연결 확인을 수행한다. 성공하면 구현 세션을 시작하고 실행 ID와 로그를 .agent-runtime/에 기록한다. 구현 후 별도 새 세션에 읽기 전용 도구만 제공해 커밋 차이를 검토한다. 연결 실패 시 정확한 오류와 재개 조건을 남기며 같은 실패를 반복 호출하지 않는다.
 
 ## 역할
 
@@ -42,7 +42,7 @@ $taskPrompt | & $taskClaudeExe -p --output-format json --tools 'Read,Glob,Grep,E
 2. 새 프롬프트에 base SHA와 구현 head SHA를 고정하고 별도 Claude 검토를 실행한다.
 3. 중요 지적이 있으면 구현 Claude에 전달한다. 수정된 최종 SHA 기준으로 재검토한다.
 4. `docs/handoffs/<작업ID>.md`에 검토 결과와 테스트 결과를 기록한다. 로컬 원시 로그는 커밋하지 않는다.
-5. 총괄에게 최종 브랜치·SHA·검증·잔여 문제를 보고한다. 총괄은 이 SHA만 통합 대상으로 처리한다.
+5. 총괄에게 최종 브랜치·SHA·검증·잔여 문제를 보고한다. 총괄은 이 SHA만 dev 통합 대상으로 처리한다. 기능 브랜치는 dev에서 시작하고 PR 대상도 dev다. main 승격은 사용자 결정 후 총괄만 수행한다.
 
 ## 실패와 재개
 
@@ -52,3 +52,4 @@ $taskPrompt | & $taskClaudeExe -p --output-format json --tools 'Read,Glob,Grep,E
 
 - [Claude CLI 명령과 플래그](https://code.claude.com/docs/en/cli-reference)
 - [Claude 프로그램 호출](https://code.claude.com/docs/en/headless)
+

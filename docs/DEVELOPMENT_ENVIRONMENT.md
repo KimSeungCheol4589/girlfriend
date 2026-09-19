@@ -8,9 +8,9 @@
 | --- | --- | --- |
 | 소스 분리 | 총괄 checkout + UI/DB Worktree | 구성 완료, 각자 브랜치에서 작업 |
 | 로컬 런타임 | Node.js 22 | 이 PC의 v22.22.3 실행 확인 |
-| 패키지 격리 | Worktree별 node_modules·고정 pnpm | UI 환경 담당이 실제 설치·실행 검증 |
+| 패키지 격리 | Worktree별 node_modules·고정 pnpm | pnpm 11.19.0 격리 설치·샘플 패키지 실행 검증 완료, 앱 의존성은 후속 |
 | 재현 가능한 컨테이너 | .devcontainer 구성 | Claude ENV-APP-001에 구현 배정 |
-| 로컬 DB | Docker 기반 Supabase 테스트 환경 | Docker 설치 확인, 엔진 실행 가능 여부를 DB 담당이 검증 |
+| 로컬 DB | Docker 기반 Supabase 테스트 환경 | 6개 서비스 실행, PostgreSQL 17.6 SQL 및 Auth/REST/Storage HTTP 200 확인. 호스트 포트는 loopback 제한 |
 | 운영 데이터 | 개발 환경에서 사용하지 않음 | 테스트 데이터와 로컬 설정으로 진행 |
 
 Worktree는 파일 작업을 분리하며 OS 보안 격리를 제공하지 않는다. Dev Container가 Node 실행 환경을 재현하도록 구성하고, 실제 컨테이너 실행 가능 여부는 별도 검증한다.
@@ -22,7 +22,7 @@ Worktree는 파일 작업을 분리하며 OS 보안 격리를 제공하지 않�
 - Codex ‘DB’: Docker 엔진·로컬 테스트 DB 실행 환경·도구 확인. 제품 SQL은 작성하지 않는다.
 - 지정 Claude ‘구현, 검토’: Dev Container·Next.js 골격부터 구현하고 이후 홈·추억·꾸미기 초기 화면을 작성한다.
 
-외부 Claude 실행 환경과 로컬 Worktree는 같은 파일 시스템이라고 가정하지 않는다. 코드 전달은 GitHub 기능 브랜치·커밋으로 하고, 총괄이 로컬에서 실제 검증한 뒤 통합한다.
+외부 Claude 실행 환경과 로컬 Worktree는 같은 파일 시스템이라고 가정하지 않는다. 코드 전달은 GitHub 기능 브랜치·커밋으로 하고, 총괄이 로컬에서 실제 검증한 뒤 dev에 통합한다. main은 사용자 결정이 완료된 범위만 승격한다.
 
 ## 앱 환경 계약
 
@@ -46,7 +46,7 @@ Worktree는 파일 작업을 분리하며 OS 보안 격리를 제공하지 않�
 
 소스가 아직 없는 단계의 런타임 smoke test를 앱 build 성공과 혼동하지 않는다. 설치되지 않은 도구·사용자 재부팅·가상화 설정이 필요하면 가능한 준비를 완료하고 구체적인 재개 조건을 보고한다.
 
-세부 결과는 docs/environments/UI.md, DB.md, APP.md에 담당별로 작성한다. 아직 파일이 없으면 결과 미제출 상태다.
+세부 결과는 [UI 환경](./environments/UI.md), [DB 환경](./environments/DB.md)을 참고한다. APP.md와 앱·Dev Container 결과는 지정 Claude 세션의 제출 대기 상태다. 기존 로컬 DB는 유지하고 문서의 시작·종료 절차를 사용한다.
 
 ## 공식 참고
 
