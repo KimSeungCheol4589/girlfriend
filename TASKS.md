@@ -17,15 +17,15 @@
 | THEME-001 | 홈, 추억, 꾸미기 | 테마·커버·홈 구성의 실제 공유 저장과 미리보기 | MEM-001 통합 | planned |
 | QA-001 | 총괄, 통합 | 전체 연결·모바일·외부 계정 접근 차단·업로드·백업 복원 확인 | 기능 구현 완료 | planned |
 
-UI-001과 DB-001의 상세 지시는 각 작업에 전달한다. 후속 작업은 의존성이 충족된 뒤 실제 결과에 맞춰 범위를 구체화한다. 앱 설정·lockfile은 UI-001에서만 생성하고 DB-001은 수정하지 않는다.
+UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, 실제 구현과 코드 검토는 Claude Code CLI로 수행한다. 후속 작업은 의존성이 충족된 뒤 실제 결과에 맞춰 범위를 구체화한다. 앱 설정·lockfile은 UI-001에서만 생성하고 DB-001은 수정하지 않는다.
 
 ## 역할별 작업 공간
 
 | 역할 | 브랜치 계획 | 위치 |
 | --- | --- | --- |
 | 총괄, 통합 | main | 기존 통합 checkout |
-| 홈, 추억, 꾸미기 | feat/ui-foundation | Codex 관리 Worktree, 이동 완료 후 총괄이 실제 위치 확인 |
-| DB | feat/db-foundation | Codex 관리 Worktree, 이동 완료 후 총괄이 실제 위치 확인 |
+| 홈, 추억, 꾸미기 | feat/ui-foundation | Codex 관리 Worktree 분리 완료 |
+| DB | feat/db-foundation | Codex 관리 Worktree 분리 완료 |
 
 개인 컴퓨터의 작업 ID·Worktree 절대 경로·자동화 ID는 총괄 대화에 보관한다. 공개 저장소의 문서는 다른 환경에서도 사용할 수 있도록 역할·작업 ID·브랜치 기준으로 작성한다.
 
