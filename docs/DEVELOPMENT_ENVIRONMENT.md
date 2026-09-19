@@ -8,9 +8,9 @@
 | --- | --- | --- |
 | 소스 분리 | 총괄 checkout + UI/DB Worktree | 구성 완료, 각자 브랜치에서 작업 |
 | 로컬 런타임 | Node.js 22 | 이 PC의 v22.22.3 실행 확인 |
-| 패키지 격리 | Worktree별 node_modules·고정 pnpm | UI 환경 담당이 실제 설치·실행 검증 |
+| 패키지 격리 | Worktree별 node_modules·고정 pnpm | pnpm 11.19.0 격리 설치·샘플 패키지 실행 검증 완료, 앱 의존성은 후속 |
 | 재현 가능한 컨테이너 | .devcontainer 구성 | Claude ENV-APP-001에 구현 배정 |
-| 로컬 DB | Docker 기반 Supabase 테스트 환경 | Docker 설치 확인, 엔진 실행 가능 여부를 DB 담당이 검증 |
+| 로컬 DB | Docker 기반 Supabase 테스트 환경 | 사용자 Docker 실행 후 서버 29.6.1 응답 확인, 실제 DB 서비스 준비 진행 중 |
 | 운영 데이터 | 개발 환경에서 사용하지 않음 | 테스트 데이터와 로컬 설정으로 진행 |
 
 Worktree는 파일 작업을 분리하며 OS 보안 격리를 제공하지 않는다. Dev Container가 Node 실행 환경을 재현하도록 구성하고, 실제 컨테이너 실행 가능 여부는 별도 검증한다.
