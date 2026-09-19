@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="합성 일러스트: 함께 만든 케이크">
+  <defs>
+    <linearGradient id="table05" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F8F1E6" />
+      <stop offset="100%" stop-color="#E9D8C4" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#table05)" />
+  <ellipse cx="400" cy="470" rx="230" ry="52" fill="#C9A98A" opacity="0.3" />
+  <rect x="236" y="290" width="328" height="150" rx="20" fill="#FFF8EE" />
+  <rect x="236" y="290" width="328" height="42" rx="20" fill="#F0C9CE" />
+  <g stroke="#C77E92" stroke-width="10" stroke-linecap="round">
+    <line x1="330" y1="228" x2="330" y2="288" />
+    <line x1="400" y1="216" x2="400" y2="288" />
+    <line x1="470" y1="228" x2="470" y2="288" />
+  </g>
+  <g fill="#F5B860">
+    <ellipse cx="330" cy="216" rx="9" ry="14" />
+    <ellipse cx="400" cy="204" rx="9" ry="14" />
+    <ellipse cx="470" cy="216" rx="9" ry="14" />
+  </g>
+  <g fill="#CBDCC6">
+    <circle cx="176" cy="404" r="26" />
+    <circle cx="624" cy="416" r="22" />
+  </g>
+</svg>
