@@ -5,8 +5,12 @@
 이 문서는 `supabase/migrations/`의 스키마·권한·RPC를 적용하고 검증하는 방법을 정리한다.
 계약 상세는 [CONTRACTS.md](./CONTRACTS.md), 권한 모델과 한계는 [SECURITY.md](./SECURITY.md)를 본다.
 
-> 이 문서를 쓴 구현 세션은 SQL을 **실행하지 않았다**. 아래 명령은 총괄(Codex)이 로컬 테스트 DB에서 실행할 절차이며,
-> 실행 결과는 `docs/handoffs/DB-001.md`에 기록한다.
+> **현재 상태 (2026-09-19)**
+> 로컬 테스트 DB에 마이그레이션 **15개 적용 완료**. 단일 세션 스위트 7개(10~70) **276개 단언 통과**,
+> 동시성 5개 경쟁 **모두 통과**, 픽스처 정리 확인.
+> 그 뒤 추가한 **16번(`20260919150100`)과 D8~D10 회귀 테스트는 아직 실행되지 않았다.**
+> 구현 세션은 SQL을 직접 실행하지 않는다. 실행은 총괄(Codex)이 하고 결과는
+> `docs/handoffs/DB-001.md`에 기록한다. 그 보고서가 상태의 기준 문서다.
 
 ## 1. 마이그레이션 파일
 
@@ -29,9 +33,11 @@
 | 13 | `20260919130200_upload_finalization_trust.sql` | **수정**: `finalize_upload`를 신뢰된 서버 역할 전용으로 교체 |
 | 14 | `20260919130300_storage_bucket_policies.sql` | 비공개 버킷 `space-assets`와 `storage.objects` 정책, `prepare_upload` 응답에 버킷 추가 |
 | 15 | `20260919140100_attachment_ownership_and_conflict_mapping.sql` | **검토 반영**: 새 첨부 파일의 업로더 요구(D2), 동시 실행 UNIQUE→CONFLICT 매핑(D3), 첨부 여부 헬퍼 공간 한정(D6), 적용 역할 가드(D7) |
+| 16 | `20260919150100_finalize_result_shape_and_guards.sql` | **검토 반영**: `finalize_upload` 재확정 응답에 `expiresAt` 포함(D8), 정규식 반복 횟수 점검을 숫자 비교로 교체(D9), 동시 경쟁 핸들러 진단용 DETAIL `path` 키(D10 보조) |
 
-12~14번은 이미 적용된 DB에 덧붙이는 **전진 수정**이다. 테이블을 지우거나 다시 만들지 않는다.
-1~11번 파일은 검토 대상 커밋 그대로 두었다. 새 DB에 처음부터 적용해도 1→14 순서로 실행하면 같은 최종 상태가 된다.
+12번 이후는 이미 적용된 DB에 덧붙이는 **전진 수정**이다. 테이블을 지우거나 다시 만들지 않는다.
+앞선 파일은 적용·검토된 상태 그대로 두고 수정하지 않는다.
+새 DB에 처음부터 적용해도 1→16 순서로 실행하면 같은 최종 상태가 된다.
 
 외부 확장은 쓰지 않는다. 토큰 해시는 `pg_catalog.sha256()`, 난수는 `gen_random_uuid()`를 사용한다.
 
@@ -80,19 +86,20 @@ for f in 20260919120100_foundation.sql \
          20260919130100_fix_regex_and_trigger_security.sql \
          20260919130200_upload_finalization_trust.sql \
          20260919130300_storage_bucket_policies.sql \
-         20260919140100_attachment_ownership_and_conflict_mapping.sql; do
+         20260919140100_attachment_ownership_and_conflict_mapping.sql \
+         20260919150100_finalize_result_shape_and_guards.sql; do
   echo "== $f"
   docker exec -i "$C" psql -U postgres -d postgres -X -q -v ON_ERROR_STOP=1 \
     -f "/tmp/db-001-migrations/$f" || { echo "FAILED: $f"; break; }
 done
 ```
 
-1~14번이 이미 적용된 DB라면 15번만 실행한다.
+15번까지 적용된 DB라면 16번만 실행한다.
 
 ```sh
 docker cp supabase/migrations "$C":/tmp/db-001-migrations
 docker exec -i "$C" psql -U postgres -d postgres -X -q -v ON_ERROR_STOP=1 \
-  -f /tmp/db-001-migrations/20260919140100_attachment_ownership_and_conflict_mapping.sql
+  -f /tmp/db-001-migrations/20260919150100_finalize_result_shape_and_guards.sql
 ```
 
 > Windows Git Bash에서는 `/tmp/...` 인자가 Windows 경로로 바뀐다.

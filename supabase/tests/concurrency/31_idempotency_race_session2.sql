@@ -6,6 +6,10 @@
 \set ON_ERROR_STOP on
 \set ra '0c0c0c0c-0000-4000-8000-00000000000a'
 
+insert into tests_race.sessions (scenario, session_no, pid)
+values ('idempotency', 2, pg_backend_pid())
+on conflict (scenario, session_no) do update set pid = excluded.pid;
+
 begin;
 select set_config('request.jwt.claims',
   json_build_object('sub', :'ra', 'role', 'authenticated', 'aud', 'authenticated')::text, true);
@@ -16,6 +20,7 @@ set local role authenticated;
 do $do$
 declare
   v_state  text;
+  v_detail text;
   v_result jsonb;
 begin
   begin
@@ -24,9 +29,10 @@ begin
                   '0c0c0c0c-0000-4000-8000-0000000000c1');
   exception when others then
     v_state := sqlstate;
+    get stacked diagnostics v_detail = pg_exception_detail;
   end;
-  insert into tests_race.results (scenario, session_no, sqlstate, result)
-  values ('idempotency', 2, v_state, v_result);
+  insert into tests_race.results (scenario, session_no, sqlstate, detail, result)
+  values ('idempotency', 2, v_state, v_detail, v_result);
 end;
 $do$;
 

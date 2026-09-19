@@ -9,6 +9,7 @@
 \set rp '0c0c0c0c-0000-4000-8000-000000000013'
 
 begin;
+select set_config('tests_race.scenario', 'profile', true);
 select set_config('request.jwt.claims',
   json_build_object('sub', :'rp', 'role', 'authenticated', 'aud', 'authenticated')::text, true);
 select set_config('request.jwt.claim.sub', :'rp', true);

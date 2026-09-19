@@ -111,6 +111,7 @@ set local role service_role;
 do $do$
 declare
   v_final jsonb;
+  v_again jsonb;
   v_a1 uuid := tests_support.get('asset1')::uuid;
 begin
   -- 위조 방지: 실제 업로더가 아닌 사람을 행위자로 보내면 존재 여부를 알리지 않는다.
@@ -145,6 +146,18 @@ begin
   v_final := public.finalize_upload(v_a1, '11111111-1111-4111-8111-111111111111',
                                     2048, 1200, 800, 'image/webp', gen_random_uuid());
   perform tests_support.eq(v_final ->> 'state', 'ready', '신뢰된 역할의 확정은 ready로 바꾼다');
+  perform tests_support.ok(v_final ? 'expiresAt', '신규 확정 응답에 expiresAt이 있다');
+
+  -- 검토 지적 D8: 이미 ready인 asset을 **새 requestId**로 다시 확정해도
+  -- 신규 성공과 완전히 같은 모양이어야 한다(expiresAt은 저장된 값 그대로).
+  v_again := public.finalize_upload(v_a1, '11111111-1111-4111-8111-111111111111',
+                                    2048, 1200, 800, 'image/webp', gen_random_uuid());
+  perform tests_support.eq(v_again, v_final,
+    '이미 ready인 자산을 새 requestId로 재확정해도 응답이 동일하다');
+  perform tests_support.eq(
+    (select a.expires_at from public.assets a where a.id = v_a1),
+    (v_final ->> 'expiresAt')::timestamptz,
+    '재확정이 저장된 만료 시각을 바꾸지 않는다');
 
   perform public.finalize_upload(tests_support.get('asset2')::uuid,
     '11111111-1111-4111-8111-111111111111', 2048, 800, 600, 'image/jpeg', gen_random_uuid());

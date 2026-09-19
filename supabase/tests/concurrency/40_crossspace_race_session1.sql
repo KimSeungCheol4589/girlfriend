@@ -10,6 +10,7 @@
 \set rf '0c0c0c0c-0000-4000-8000-00000000000f'
 
 begin;
+select set_config('tests_race.scenario', 'crossspace', true);
 select set_config('request.jwt.claims',
   json_build_object('sub', :'rf', 'role', 'authenticated', 'aud', 'authenticated')::text, true);
 select set_config('request.jwt.claim.sub', :'rf', true);

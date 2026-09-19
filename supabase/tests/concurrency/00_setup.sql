@@ -32,11 +32,23 @@ create table tests_race.results (
   scenario    text not null,
   session_no  integer not null,
   sqlstate    text,
+  detail      text,
   result      jsonb,
   recorded_at timestamptz not null default now(),
   primary key (scenario, session_no)
 );
 grant all on table tests_race.results to public;
+
+-- 세션 2가 자기 backend pid를 **미리 커밋해서** 알린다.
+-- 세션 1은 이 pid로 pg_blocking_pids를 확인해 "그 세션이 나 때문에 막혀 있는지"를 본다.
+-- pg_stat_activity는 SET ROLE 이후 다른 세션의 열이 대부분 NULL이라 쓸 수 없다.
+create table tests_race.sessions (
+  scenario   text not null,
+  session_no integer not null,
+  pid        integer not null,
+  primary key (scenario, session_no)
+);
+grant all on table tests_race.sessions to public;
 
 insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at,
                         created_at, updated_at, raw_app_meta_data, raw_user_meta_data)

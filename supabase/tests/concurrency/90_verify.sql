@@ -118,6 +118,12 @@ begin
   if v_s2.sqlstate <> 'GF409' then
     raise exception '동시성 실패: 늦은 수락의 오류 코드가 %다(기대 GF409)', v_s2.sqlstate;
   end if;
+  -- 사전 검사가 아니라 실제 UNIQUE 예외 핸들러를 탔는지 확인한다(순차 실행이면 사전 검사로 끝난다).
+  if coalesce(v_s2.detail, '') not like '%"path":"unique_violation"%' then
+    raise exception
+      '동시성 실패: 늦은 수락이 동시 경쟁 경로가 아니라 사전 검사로 끝났다 (DETAIL=%). 겹침이 실제로 일어났는지 확인한다',
+      coalesce(v_s2.detail, '(없음)');
+  end if;
 
   select count(*) into v_members from public.space_members m
    where m.user_id = '0c0c0c0c-0000-4000-8000-00000000000f';
@@ -140,6 +146,11 @@ begin
   end if;
   if v_s2.sqlstate <> 'GF409' then
     raise exception '동시성 실패: 늦은 프로필 저장의 오류 코드가 %다(기대 GF409)', v_s2.sqlstate;
+  end if;
+  if coalesce(v_s2.detail, '') not like '%"path":"unique_violation"%' then
+    raise exception
+      '동시성 실패: 늦은 프로필 저장이 동시 경쟁 경로가 아니라 사전 검사로 끝났다 (DETAIL=%)',
+      coalesce(v_s2.detail, '(없음)');
   end if;
 
   select count(*) into v_rows from public.profiles p

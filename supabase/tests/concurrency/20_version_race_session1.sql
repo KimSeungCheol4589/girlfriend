@@ -7,6 +7,7 @@
 \set rmemory '0c0c0c0c-0000-4000-8000-0000000000d1'
 
 begin;
+select set_config('tests_race.scenario', 'version', true);
 select set_config('request.jwt.claims',
   json_build_object('sub', :'ra', 'role', 'authenticated', 'aud', 'authenticated')::text, true);
 select set_config('request.jwt.claim.sub', :'ra', true);

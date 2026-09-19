@@ -7,6 +7,8 @@
 \set rb '0c0c0c0c-0000-4000-8000-00000000000b'
 
 begin;
+-- 겹침 장치가 이 경쟁의 세션 2만 보도록 시나리오를 알린다(역할 전환 전에 설정한다).
+select set_config('tests_race.scenario', 'invite', true);
 select set_config('request.jwt.claims',
   json_build_object('sub', :'rb', 'role', 'authenticated', 'aud', 'authenticated')::text, true);
 select set_config('request.jwt.claim.sub', :'rb', true);

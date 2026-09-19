@@ -10,6 +10,11 @@
 \set ON_ERROR_STOP on
 \set re '0c0c0c0c-0000-4000-8000-00000000000e'
 
+-- 트랜잭션 밖에서 자기 pid를 먼저 커밋해 알린다. 세션 1의 겹침 장치가 이 값을 쓴다.
+insert into tests_race.sessions (scenario, session_no, pid)
+values ('invite', 2, pg_backend_pid())
+on conflict (scenario, session_no) do update set pid = excluded.pid;
+
 begin;
 select set_config('request.jwt.claims',
   json_build_object('sub', :'re', 'role', 'authenticated', 'aud', 'authenticated')::text, true);
@@ -20,6 +25,7 @@ set local role authenticated;
 do $do$
 declare
   v_state  text;
+  v_detail text;
   v_result jsonb;
 begin
   begin
@@ -27,9 +33,10 @@ begin
                                      '0c0c0c0c-0000-4000-8000-0000000000a2');
   exception when others then
     v_state := sqlstate;
+    get stacked diagnostics v_detail = pg_exception_detail;
   end;
-  insert into tests_race.results (scenario, session_no, sqlstate, result)
-  values ('invite', 2, v_state, v_result);
+  insert into tests_race.results (scenario, session_no, sqlstate, detail, result)
+  values ('invite', 2, v_state, v_detail, v_result);
 end;
 $do$;
 

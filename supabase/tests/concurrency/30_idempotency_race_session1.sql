@@ -6,6 +6,7 @@
 \set ra '0c0c0c0c-0000-4000-8000-00000000000a'
 
 begin;
+select set_config('tests_race.scenario', 'idempotency', true);
 select set_config('request.jwt.claims',
   json_build_object('sub', :'ra', 'role', 'authenticated', 'aud', 'authenticated')::text, true);
 select set_config('request.jwt.claim.sub', :'ra', true);

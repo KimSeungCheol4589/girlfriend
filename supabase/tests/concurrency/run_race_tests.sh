@@ -127,7 +127,7 @@ run_race "profile"     "50_profile_race_session1.sql"     "51_profile_race_sessi
 
 echo "--- 기록된 세션 결과 ---"
 dockerx exec -i "$DB_CONTAINER" psql -U postgres -d postgres -X \
-  -c "select scenario, session_no, coalesce(sqlstate,'(성공)') as sqlstate, result from tests_race.results order by scenario, session_no;" \
+  -c "select scenario, session_no, coalesce(sqlstate,'(성공)') as sqlstate, detail, result from tests_race.results order by scenario, session_no;" \
   || FAILED=1
 
 echo "--- verify ---"

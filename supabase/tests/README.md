@@ -90,8 +90,13 @@ DB_CONTAINER=<이름> sh supabase/tests/concurrency/run_race_tests.sh
 - 각 세션이 자기 SQLSTATE와 반환 JSON을 `tests_race.results`에 기록한다. 로그 문자열을 파싱하지 않는다.
 - `90_verify.sql`이 그 표와 최종 DB 상태를 함께 확인한다. 패자의 **오류 코드**와
   중복 제출 두 응답의 **ID 일치**까지 본다. 행 수만 보지 않는다.
-- 세션 1은 `_barrier.sql`로 상대 세션이 실제로 잠금 대기에 들어간 것을 확인한 뒤 커밋한다.
+- 세션 1은 `_barrier.sql`로 **이 경쟁의 세션 2가 바로 자기 때문에** 막힌 것을 확인한 뒤 커밋한다.
+  세션 2가 시작 직후 자기 pid를 `tests_race.sessions`에 커밋해 알리고, 세션 1은
+  `pg_blocking_pids(세션2 pid)`에 자기 pid가 있는지만 본다. 클러스터 전역의 아무 잠금 대기나 세지 않는다.
   겹치지 않으면 실패로 처리한다(우연히 순차 실행된 결과를 통과로 기록하지 않기 위해서다).
+- `crossspace`·`profile`은 **사전 검사와 예외 핸들러가 같은 `GF409`를 돌려준다.**
+  그래서 세션 2가 DETAIL을 기록하고, 검증기가 진단용 `"path":"unique_violation"`을 요구한다.
+  순차 실행으로 끝나면 사전 검사 DETAIL이 남아 실패한다.
 - 세션 1은 커밋 순간까지 `authenticated` 역할을 유지한다. 커밋 시점 지연 트리거의 실제 보안 컨텍스트를
   그대로 재현하기 위해서다. 세션 스크립트에서 `RESET ROLE`을 넣지 않는다.
 - 기대된 거부는 세션 스크립트 안에서 잡아 기록하므로, **psql 종료 코드가 0이 아니면 그 자체가 결함 신호**다.

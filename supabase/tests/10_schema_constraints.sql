@@ -120,6 +120,66 @@ values (:'s1', :'ua', '정상 링크', 'https://map.naver.com/p/1');
 select tests_support.ok(true, 'HTTPS 지도 링크 저장 (정규식 컴파일 정상)');
 
 -- ---------------------------------------------------------------------------
+-- 정규식 반복 횟수 한도 (검토 지적 D9)
+-- ---------------------------------------------------------------------------
+-- 엔진 한도가 정말 255인지 먼저 확인한다.
+select tests_support.eq(
+  tests_support.try_sqlstate($q$select 'x' ~ 'a{256}'$q$), '2201B',
+  'PostgreSQL 반복 횟수 한도는 255다(256은 2201B)');
+select tests_support.ok(
+  tests_support.try_sqlstate($q$select 'x' ~ 'a{255}'$q$) is null,
+  '255는 허용된다');
+
+-- 150100의 점검식이 경계를 정확히 잡는지. 문자열 패턴이 아니라 숫자 비교여야 한다.
+do $do$
+declare r record;
+begin
+  for r in
+    select v.body, v.should_flag,
+           exists (
+             select 1
+               from regexp_matches(v.body, '\{([0-9]+)(?:,([0-9]*))?\}', 'g') as m
+              where m[1]::bigint > 255
+                 or (nullif(m[2], '') is not null and m[2]::bigint > 255)
+           ) as flagged
+      from (values
+        ('a{256}b', true),   ('a{300}b', true),   ('a{1,256}b', true),
+        ('a{1,299}b', true), ('a{256,}b', true),  ('a{300,}b', true),
+        ('a{255}b', false),  ('a{1,255}b', false), ('a{3,}b', false),
+        ('{"title":"length"}', false), ('{}', false), ('{1,2}', false)
+      ) as v(body, should_flag)
+  loop
+    perform tests_support.eq(r.flagged, r.should_flag,
+      format('반복 횟수 점검 경계: %s', r.body));
+  end loop;
+end;
+$do$;
+
+-- 실제 객체에 한도를 넘는 반복 횟수가 남아 있지 않은지.
+do $do$
+declare v_bad text;
+begin
+  with src as (
+    select format('%s.%s', n.nspname, p.proname) as what, p.prosrc as body
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname in ('public', 'app', 'app_private')
+    union all
+    select format('%s.%s', c.relname, con.conname), pg_get_constraintdef(con.oid)
+      from pg_constraint con
+      join pg_class c on c.oid = con.conrelid
+      join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and con.contype = 'c'
+  )
+  select string_agg(distinct s.what, ', ') into v_bad
+    from src s, regexp_matches(s.body, '\{([0-9]+)(?:,([0-9]*))?\}', 'g') as m
+   where m[1]::bigint > 255
+      or (nullif(m[2], '') is not null and m[2]::bigint > 255);
+  perform tests_support.ok(v_bad is null,
+    coalesce('한도를 넘는 정규식이 남아 있다: ' || v_bad, '한도를 넘는 정규식이 없다'));
+end;
+$do$;
+
+-- ---------------------------------------------------------------------------
 -- 홈 섹션 JSON
 -- ---------------------------------------------------------------------------
 select tests_support.ok(
