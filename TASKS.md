@@ -2,14 +2,17 @@
 
 갱신일: 2026-09-19 · 관리 담당: 총괄, 통합
 
-상태: planned → assigned → in_progress → ready → integrated. 수정 요청은 changes_requested, 외부 조건 대기는 blocked로 기록한다. assigned는 지시 전달 완료, ready는 커밋·보고서 제출 완료, integrated는 총괄 검증·main 반영 완료다.
+상태: planned → assigned → in_progress → ready → integrated. 수정 요청은 changes_requested, 외부 조건 대기는 blocked로 기록한다. assigned는 지시 전달 완료, ready는 커밋·보고서 제출 완료, integrated는 총괄 검증·dev 반영 완료다. main 승격은 사용자 결정 후 별도로 기록한다.
 
 ## 작업과 의존성
 
 | ID | 담당 | 범위·완료 기준 | 의존성 | 상태 |
 | --- | --- | --- | --- | --- |
 | OPS-001 | 총괄, 통합 | 협업 규칙, Worktree 분리, 첫 배분, 15분 자동화 등록 | 없음 | integrated |
-| UI-001 | 홈, 추억, 꾸미기 | Next.js·TS·Tailwind 기본 앱, 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | 없음 | blocked |
+| ENV-UI-001 | 홈, 추억, 꾸미기 (Codex) | 격리된 패키지 매니저 준비·설치 smoke test·포트 확인·환경 보고 | 없음 | integrated |
+| ENV-DB-001 | DB (Codex) | Docker 엔진·가상화 상태 확인, 로컬 테스트 DB 도구 준비·실제 서비스 및 SQL 접속 확인 | 없음 | in_progress |
+| ENV-APP-001 | 지정 Claude 세션 | Node 22·pnpm 고정·Next.js 골격·Dev Container 설정·설치/build 검증 | 저장소 일치 확인 | assigned |
+| UI-001 | 지정 Claude 세션 | 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | ENV-APP-001 | assigned |
 | DB-001 | DB | DESIGN 기반 SQL migration, RLS·권한·초대·버전 처리 기반과 DB 테스트, 통합용 계약 문서 | 없음 | blocked |
 | AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | planned |
 | MEM-001 | 홈, 추억, 꾸미기 | 추억 실제 CRUD·사진 업로드·필터 연결, 충돌·실패 처리 | AUTH-001 통합 | planned |
@@ -19,11 +22,13 @@
 
 UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, 실제 구현과 코드 검토는 Claude Code CLI로 수행한다. 후속 작업은 의존성이 충족된 뒤 실제 결과에 맞춰 범위를 구체화한다. 앱 설정·lockfile은 UI-001에서만 생성하고 DB-001은 수정하지 않는다.
 
+최신 배분: 제품 골격·설정·lockfile·Dev Container는 지정 Claude 세션의 ENV-APP-001 소유다. Codex UI·DB 작업은 각각 docs/environments/UI.md, docs/environments/DB.md와 로컬 도구 준비만 담당한다. Claude 제품 브랜치는 feat/claude-foundation으로 요청했으며 원격 생성 여부는 실제로 확인한다. 첫 단계 후 DB-001을 별도로 배정한다.
+
 ## 역할별 작업 공간
 
 | 역할 | 브랜치 계획 | 위치 |
 | --- | --- | --- |
-| 총괄, 통합 | main | 기존 통합 checkout |
+| 총괄, 통합 | dev | 기존 통합 checkout, dev로 전환 완료 |
 | 홈, 추억, 꾸미기 | feat/ui-foundation | Codex 관리 Worktree 분리 완료 |
 | DB | feat/db-foundation | Codex 관리 Worktree 분리 완료 |
 
@@ -31,9 +36,10 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 
 ## 통합 기록
 
-| 작업 ID | 검토 커밋 | main 반영 커밋 | 검증 결과 |
+| 작업 ID | 검토 커밋 | dev 반영 커밋 | 검증 결과 |
 | --- | --- | --- | --- |
-| - | - | - | 아직 구현 통합 없음 |
+| ENV-UI-001 | 5d0475e | 6a32015 | 환경 문서 검토, 총괄이 pnpm 11.19.0·격리 패키지 Node 단언 재확인. 제품 앱은 아직 미구현 |
+| ENV-DB-001 초기 조사 | c49549b, 23a13bc | dc70419, dbc3396 | 환경 조사 문서만 통합. 실제 DB 준비는 후속 확인 중 |
 
 ## 운영 상태
 
@@ -46,3 +52,6 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 - 2026-09-19 후속: 두 로컬 Claude 구현 호출은 ConnectionRefused로 종료했고 제품 코드 변경은 없다. UI 차단 보고서 커밋 071b3794a50c05372c09f1dcc4c6d8e570da8019, DB 차단 보고서 커밋 05807f0a925c5dc9b1252d844a86f3cd0551addd는 각각 담당 브랜치에 있으며 구현 완료로 취급하지 않는다.
 - 사용자가 기존 Claude 데스크톱 세션을 지정했다. 총괄의 공식 CLI 메시지 전달은 성공했으나 세션의 저장소·답변 확인은 대기 중이다. 개인 세션 ID는 총괄의 로컬 .agent-runtime/claude-target.json에 기록한다.
 - 재개 조건: 지정 세션과 girlfriend 저장소의 연결 확인. 이후 지시는 총괄만 전달하며 담당 Codex 작업은 새 로컬 Claude 세션을 생성하지 않는다. DB 실제 검증에는 실행 가능한 테스트 DB 환경도 필요하다.
+- 2026-09-19 최신 지시: 사용자가 격리 개발환경 준비와 작업 시작을 요청했다. Codex UI·DB 환경 준비 작업을 배정했다. 지정 Claude 세션에 저장소 일치 확인을 선행 조건으로 ENV-APP-001 → UI-001 구현 지시를 전달했고 CLI 전송 성공을 확인했다. 실행·완료는 브랜치와 보고서로 추가 확인한다.
+- 2026-09-19 브랜치 정책 변경: 2590e2e에서 dev 생성·원격 push 완료. 앞으로 기능 브랜치 → dev에서 개발·검증하고, 사용자가 확정한 범위만 main으로 승격한다. 이전 main 반영 기록은 정책 변경 전 이력이다.
+- 2026-09-19 Docker 후속: 사용자가 Docker를 실행한 뒤 총괄이 Server 29.6.1과 docker ps 응답을 확인했다. 기존 실행 컨테이너 없음. DB 담당에 독립 로컬 Supabase 환경 init/start 및 SQL·서비스 health 검증을 재배정했다.
