@@ -10,7 +10,7 @@
 | --- | --- | --- | --- | --- |
 | OPS-001 | 총괄, 통합 | 협업 규칙, Worktree 분리, 첫 배분, 15분 자동화 등록 | 없음 | integrated |
 | ENV-UI-001 | 홈, 추억, 꾸미기 (Codex) | 격리된 패키지 매니저 준비·설치 smoke test·포트 확인·환경 보고 | 없음 | integrated |
-| ENV-DB-001 | DB (Codex) | Docker 엔진·가상화 상태 확인, 로컬 테스트 DB 도구 준비·실제 서비스 및 SQL 접속 확인 | 없음 | in_progress |
+| ENV-DB-001 | DB (Codex) | Docker 엔진·가상화 상태 확인, 로컬 테스트 DB 도구 준비·실제 서비스 및 SQL 접속 확인 | 없음 | integrated |
 | ENV-APP-001 | 지정 Claude 세션 | Node 22·pnpm 고정·Next.js 골격·Dev Container 설정·설치/build 검증 | 저장소 일치 확인 | assigned |
 | UI-001 | 지정 Claude 세션 | 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | ENV-APP-001 | assigned |
 | DB-001 | DB | DESIGN 기반 SQL migration, RLS·권한·초대·버전 처리 기반과 DB 테스트, 통합용 계약 문서 | 없음 | blocked |
@@ -40,6 +40,7 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 | --- | --- | --- | --- |
 | ENV-UI-001 | 5d0475e | 6a32015 | 환경 문서 검토, 총괄이 pnpm 11.19.0·격리 패키지 Node 단언 재확인. 제품 앱은 아직 미구현 |
 | ENV-DB-001 초기 조사 | c49549b, 23a13bc | dc70419, dbc3396 | 환경 조사 문서만 통합. 실제 DB 준비는 후속 확인 중 |
+| ENV-DB-001 실행 검증 | 247be10 | 95c4425 | PostgreSQL SELECT 1, Auth/REST/Storage HTTP 200, 3개 호스트 포트 loopback 제한 확인. 제품 migration/RLS는 미실행 |
 
 ## 운영 상태
 
@@ -55,3 +56,4 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 - 2026-09-19 최신 지시: 사용자가 격리 개발환경 준비와 작업 시작을 요청했다. Codex UI·DB 환경 준비 작업을 배정했다. 지정 Claude 세션에 저장소 일치 확인을 선행 조건으로 ENV-APP-001 → UI-001 구현 지시를 전달했고 CLI 전송 성공을 확인했다. 실행·완료는 브랜치와 보고서로 추가 확인한다.
 - 2026-09-19 브랜치 정책 변경: 2590e2e에서 dev 생성·원격 push 완료. 앞으로 기능 브랜치 → dev에서 개발·검증하고, 사용자가 확정한 범위만 main으로 승격한다. 이전 main 반영 기록은 정책 변경 전 이력이다.
 - 2026-09-19 Docker 후속: 사용자가 Docker를 실행한 뒤 총괄이 Server 29.6.1과 docker ps 응답을 확인했다. 기존 실행 컨테이너 없음. DB 담당에 독립 로컬 Supabase 환경 init/start 및 SQL·서비스 health 검증을 재배정했다.
+- 2026-09-19 DB 환경 완료: 프로젝트 전용 6개 서비스 실행 및 접속 확인. API 127.0.0.1:56321, PostgreSQL 127.0.0.1:56322, 테스트 메일 127.0.0.1:56324. 환경 유지·중지·재개는 docs/environments/DB.md의 지정 컨테이너 명령을 사용한다. pre-loopback 백업 컨테이너는 시작하지 않는다.
