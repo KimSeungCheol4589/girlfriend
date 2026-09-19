@@ -1,0 +1,22 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies and build outputs
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local deployment settings and logs
+.vercel/
+*.log
+
+# OS metadata
+.DS_Store
+Thumbs.db
