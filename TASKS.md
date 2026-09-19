@@ -13,7 +13,7 @@
 | ENV-DB-001 | DB (Codex) | Docker 엔진·가상화 상태 확인, 로컬 테스트 DB 도구 준비·실제 서비스 및 SQL 접속 확인 | 없음 | integrated |
 | ENV-APP-001 | UI Codex → 로컬 Claude | Node 22·pnpm 고정·Next.js 골격·Dev Container 설정·설치/build 검증 | 저장소 일치 확인 | blocked |
 | UI-001 | UI Codex → 로컬 Claude | 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | ENV-APP-001 | ready |
-| DB-001 | DB | DESIGN 기반 SQL migration, RLS·권한·초대·버전 처리 기반과 DB 테스트, 통합용 계약 문서 | 없음 | in_progress |
+| DB-001 | DB | DESIGN 기반 SQL migration, RLS·권한·초대·버전 처리 기반과 DB 테스트, 통합용 계약 문서 | 없음 | integrated |
 | AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | planned |
 | MEM-001 | 홈, 추억, 꾸미기 | 추억 실제 CRUD·사진 업로드·필터 연결, 충돌·실패 처리 | AUTH-001 통합 | planned |
 | FOOD-001 | 총괄이 후속 배정 | 맛집 목록·방문 상태·개인 후기, 권한·상태 전이 검증 | AUTH-001 통합 | planned |
@@ -41,6 +41,8 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 | ENV-UI-001 | 5d0475e | 6a32015 | 환경 문서 검토, 총괄이 pnpm 11.19.0·격리 패키지 Node 단언 재확인. 제품 앱은 아직 미구현 |
 | ENV-DB-001 초기 조사 | c49549b, 23a13bc | dc70419, dbc3396 | 환경 조사 문서만 통합. 실제 DB 준비는 후속 확인 중 |
 | ENV-DB-001 실행 검증 | 247be10 | 95c4425 | PostgreSQL SELECT 1, Auth/REST/Storage HTTP 200, 3개 호스트 포트 loopback 제한 확인. 제품 migration/RLS는 미실행 |
+
+| DB-001 | 59fa491 (최종 제출 ff19d53) | 44f9285 | 독립 검토 승인, 총괄 단일 세션 7개/294 단언 재확인. 담당 동시성 5개 통과. 실제 파일 HTTP/앱 인증 연결은 후속 |
 
 ## 운영 상태
 
