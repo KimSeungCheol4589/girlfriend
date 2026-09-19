@@ -2,7 +2,7 @@
 
 갱신일: 2026-09-19 · 관리 담당: 총괄, 통합
 
-상태: planned → assigned → in_progress → ready → integrated. 수정 요청은 changes_requested, 외부 조건 대기는 blocked로 기록한다. assigned는 지시 전달 완료, ready는 커밋·보고서 제출 완료, integrated는 총괄 검증·main 반영 완료다.
+상태: planned → assigned → in_progress → ready → integrated. 수정 요청은 changes_requested, 외부 조건 대기는 blocked로 기록한다. assigned는 지시 전달 완료, ready는 커밋·보고서 제출 완료, integrated는 총괄 검증·dev 반영 완료다. main 승격은 사용자 결정 후 별도로 기록한다.
 
 ## 작업과 의존성
 
@@ -28,7 +28,7 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 
 | 역할 | 브랜치 계획 | 위치 |
 | --- | --- | --- |
-| 총괄, 통합 | main | 기존 통합 checkout |
+| 총괄, 통합 | dev | 기존 통합 checkout, dev로 전환 완료 |
 | 홈, 추억, 꾸미기 | feat/ui-foundation | Codex 관리 Worktree 분리 완료 |
 | DB | feat/db-foundation | Codex 관리 Worktree 분리 완료 |
 
@@ -36,7 +36,7 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 
 ## 통합 기록
 
-| 작업 ID | 검토 커밋 | main 반영 커밋 | 검증 결과 |
+| 작업 ID | 검토 커밋 | dev 반영 커밋 | 검증 결과 |
 | --- | --- | --- | --- |
 | - | - | - | 아직 구현 통합 없음 |
 
@@ -52,3 +52,4 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 - 사용자가 기존 Claude 데스크톱 세션을 지정했다. 총괄의 공식 CLI 메시지 전달은 성공했으나 세션의 저장소·답변 확인은 대기 중이다. 개인 세션 ID는 총괄의 로컬 .agent-runtime/claude-target.json에 기록한다.
 - 재개 조건: 지정 세션과 girlfriend 저장소의 연결 확인. 이후 지시는 총괄만 전달하며 담당 Codex 작업은 새 로컬 Claude 세션을 생성하지 않는다. DB 실제 검증에는 실행 가능한 테스트 DB 환경도 필요하다.
 - 2026-09-19 최신 지시: 사용자가 격리 개발환경 준비와 작업 시작을 요청했다. Codex UI·DB 환경 준비 작업을 배정했다. 지정 Claude 세션에 저장소 일치 확인을 선행 조건으로 ENV-APP-001 → UI-001 구현 지시를 전달했고 CLI 전송 성공을 확인했다. 실행·완료는 브랜치와 보고서로 추가 확인한다.
+- 2026-09-19 브랜치 정책 변경: 2590e2e에서 dev 생성·원격 push 완료. 앞으로 기능 브랜치 → dev에서 개발·검증하고, 사용자가 확정한 범위만 main으로 승격한다. 이전 main 반영 기록은 정책 변경 전 이력이다.

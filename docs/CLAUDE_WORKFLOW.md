@@ -42,7 +42,7 @@ $taskPrompt | & $taskClaudeExe -p --output-format json --tools 'Read,Glob,Grep,E
 2. 새 프롬프트에 base SHA와 구현 head SHA를 고정하고 별도 Claude 검토를 실행한다.
 3. 중요 지적이 있으면 구현 Claude에 전달한다. 수정된 최종 SHA 기준으로 재검토한다.
 4. `docs/handoffs/<작업ID>.md`에 검토 결과와 테스트 결과를 기록한다. 로컬 원시 로그는 커밋하지 않는다.
-5. 총괄에게 최종 브랜치·SHA·검증·잔여 문제를 보고한다. 총괄은 이 SHA만 통합 대상으로 처리한다.
+5. 총괄에게 최종 브랜치·SHA·검증·잔여 문제를 보고한다. 총괄은 이 SHA만 dev 통합 대상으로 처리한다. 기능 브랜치는 dev에서 시작하고 PR 대상도 dev다. main 승격은 사용자 결정 후 총괄만 수행한다.
 
 ## 실패와 재개
 
