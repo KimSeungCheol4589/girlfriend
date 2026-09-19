@@ -137,12 +137,16 @@ Write  C:\Users\aica_\.codex\worktrees\863f\private\.devcontainer\devcontainer.j
 
 ## 5. 후속 작업
 
-1. 총괄이 `.devcontainer/devcontainer.json`을 만들고 컨테이너 빌드·기동을 검증한다. (구현 세션은 이 경로 쓰기가 계속 거부돼 재시도를 중단했다.)
-2. 변경을 커밋한다(`pnpm-lock.yaml` 포함).
-3. 새 head SHA를 고정해 별도 Claude 세션에 수정본 독립 재검토를 의뢰한다. 이전 검토 `0754e14e-3e39-4c98-bb31-5f2042f6cef1`는 `240a783` 기준이다.
+1. 총괄이 정상 승인 경로를 확인한 뒤 Claude에 `.devcontainer/devcontainer.json` 구현을 재배정하고 컨테이너 빌드·기동을 검증한다. Codex가 대신 작성하지 않는다.
+2. 제품 변경과 pnpm-lock.yaml 커밋 완료. 검토된 제품 HEAD는 87d99e4ab6f87da70e9a551efb2f280dda3f8268이다.
+3. 새 독립 검토 3차까지 완료했고 최종 제품 변경은 승인됐다. Dev Container 파일 부재와 컨테이너 미검증은 별도 차단이다.
 
 ## 6. 통합 준비 여부
 
 앱 골격·의존성·설치 정책·검증 스크립트는 통합 가능한 상태다.
 **Dev Container 항목이 미완료이므로 ENV-APP-001 전체를 완료로 표시하면 안 된다.**
-독립 검토도 아직 남아 있다.
+제품 변경 독립 검토는 완료됐다. 컨테이너 항목이 해결될 때까지 ENV-APP-001은 검토 대기다.
+
+## 최종 제품 검토 증거
+
+제품 HEAD `87d99e4ab6f87da70e9a551efb2f280dda3f8268`은 새 읽기 전용 Claude 세션 `cd237114-7d04-438b-ba4f-5ee44d47e9d5`에서 차단 결함 없음으로 승인됐다. 1·2차 지적 및 해결·최종 검증의 상세 기록은 [UI-001](UI-001.md)의 Codex 최종 기록을 따른다. 이 기록은 Dev Container 파일 생성·컨테이너 실행 성공을 뜻하지 않는다. 정상 승인 경로와 후속 Claude 구현이 필요하다.
