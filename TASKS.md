@@ -11,10 +11,10 @@
 | OPS-001 | 총괄, 통합 | 협업 규칙, Worktree 분리, 첫 배분, 15분 자동화 등록 | 없음 | integrated |
 | ENV-UI-001 | 홈, 추억, 꾸미기 (Codex) | 격리된 패키지 매니저 준비·설치 smoke test·포트 확인·환경 보고 | 없음 | integrated |
 | ENV-DB-001 | DB (Codex) | Docker 엔진·가상화 상태 확인, 로컬 테스트 DB 도구 준비·실제 서비스 및 SQL 접속 확인 | 없음 | integrated |
-| ENV-APP-001 | UI Codex → 로컬 Claude | Node 22·pnpm 고정·Next.js 골격·Dev Container 설정·설치/build 검증 | 저장소 일치 확인 | blocked |
-| UI-001 | UI Codex → 로컬 Claude | 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | ENV-APP-001 | ready |
+| ENV-APP-001 | UI Codex → 로컬 Claude | Node 22·pnpm 고정·Next.js 골격·Dev Container 설정·설치/build 검증 | 저장소 일치 확인 | integrated |
+| UI-001 | UI Codex → 로컬 Claude | 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | ENV-APP-001 | integrated |
 | DB-001 | DB | DESIGN 기반 SQL migration, RLS·권한·초대·버전 처리 기반과 DB 테스트, 통합용 계약 문서 | 없음 | integrated |
-| AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | planned |
+| AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | assigned |
 | MEM-001 | 홈, 추억, 꾸미기 | 추억 실제 CRUD·사진 업로드·필터 연결, 충돌·실패 처리 | AUTH-001 통합 | planned |
 | FOOD-001 | 총괄이 후속 배정 | 맛집 목록·방문 상태·개인 후기, 권한·상태 전이 검증 | AUTH-001 통합 | planned |
 | THEME-001 | 홈, 추억, 꾸미기 | 테마·커버·홈 구성의 실제 공유 저장과 미리보기 | MEM-001 통합 | planned |
@@ -44,6 +44,8 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 
 | DB-001 | 59fa491 (최종 제출 ff19d53) | 44f9285 | 독립 검토 승인, 총괄 단일 세션 7개/294 단언 재확인. 담당 동시성 5개 통과. 실제 파일 HTTP/앱 인증 연결은 후속 |
 
+| ENV-APP-001 / UI-001 | UI 87d99e4, 환경 d429216 (최종 4c21725) | f384db6 | 새 Claude 독립 승인, 호스트 unit110 총괄 재확인, 컨테이너 실행 증거·격리 inspect 확인. 필수 검증 통과 |
+
 ## 운영 상태
 
 - 초기에는 사용자가 만든 담당 작업 두 개를 재사용한다. 별도 작업을 임의로 추가 생성하지 않는다.
@@ -62,3 +64,7 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 
 - 2026-09-19 로컬 전환: 사용자 승인으로 기존 클라우드 전용 규칙 해제. UI/DB 로컬 구현과 새 세션 독립 검토를 허용했다. 과거 클라우드·신규 세션 금지 관련 기록은 이 최신 결정으로 대체된다.
 - UI-001 제출: feat/ui-foundation 95221682e5c3dc00562f4de0a245dc5f581b6c52, 제품 검토 SHA 87d99e4ab6f87da70e9a551efb2f280dda3f8268 독립 승인. 총괄 unit110 재확인. ENV-APP-001 Dev Container 생성/실행 검증 미완료로 전체 통합 대기. 정상 파일 승인 경로 조사와 해당 환경 항목만 후속 배정.
+
+## AUTH-001 후속 배정
+
+DB 담당은 최신 dev에서 codex/auth-foundation 브랜치로 시작한다. 소유 범위를 인증용 src/lib/supabase, src/features/auth, 로그인·콜백·온보딩·초대·설정 화면, 세션 갱신 미들웨어, 인증 연결에 필요한 app layout/AppShell, .env.example, package.json/pnpm-lock.yaml, 인증 테스트·문서로 확장한다. UI 담당은 이 작업 동안 공통 앱 파일을 수정하지 않는다. 기존 데모 UI는 명시적 데모 진입으로 구분하고 환경 누락 시 실제 인증 성공으로 표시하지 않는다. 로컬 Supabase 합성 계정으로 로그인·로그아웃·세션·공간 생성·초대·외부 계정 차단을 검증하며 운영 계정/SMTP/배포 설정은 변경하지 않는다. DB SQL 계약 변경은 사유·영향과 회귀 검증을 보고한다. 구현·새 독립 검토를 Claude가 수행하며 다음 기능은 별도 배정한다.
