@@ -24,6 +24,7 @@ export function CustomizePreview({
 
   return (
     <div
+      data-testid="customize-preview"
       data-theme={customization.themeKey}
       style={themeCssVariables(customization.themeKey, customization.accentColor)}
       className="overflow-hidden rounded-card border border-border bg-background shadow-card"

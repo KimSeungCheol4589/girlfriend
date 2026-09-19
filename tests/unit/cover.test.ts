@@ -89,6 +89,26 @@ describe('createCoverPreview', () => {
   });
 });
 
+describe('checkImageCandidate — HEIC 판정', () => {
+  it('MIME이 비어 있어도 확장자로 HEIC를 알아본다', () => {
+    // 일부 브라우저·OS는 .heic 파일에 빈 MIME을 준다.
+    // 이때 일반 형식 오류가 아니라 HEIC 전용 안내가 나가야 한다.
+    expect(checkImageCandidate({ name: 'IMG_0001.HEIC', size: 10, type: '' })).toContain('HEIC');
+    expect(checkImageCandidate({ name: 'photo.heif', size: 10, type: '' })).toContain('HEIC');
+  });
+
+  it('MIME이 있으면 확장자보다 MIME을 믿는다', () => {
+    // 확장자만 heic인 실제 JPEG을 HEIC로 오인하지 않는다.
+    expect(checkImageCandidate({ name: 'mislabeled.heic', size: 10, type: 'image/jpeg' })).toBeNull();
+  });
+
+  it('MIME이 비어 있고 HEIC도 아니면 일반 형식 안내를 낸다', () => {
+    const reason = checkImageCandidate({ name: 'unknown.bin', size: 10, type: '' });
+    expect(reason).toContain('JPEG');
+    expect(reason).not.toContain('HEIC');
+  });
+});
+
 describe('isLocalPreviewUrl', () => {
   it('blob: 주소만 임시 미리보기로 본다', () => {
     expect(isLocalPreviewUrl(BLOB_URL)).toBe(true);

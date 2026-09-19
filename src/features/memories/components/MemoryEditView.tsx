@@ -6,7 +6,7 @@ import { MemoryForm } from '@/features/memories/components/MemoryForm';
 import { useDemoStore } from '@/lib/demo/demo-store';
 
 export function MemoryEditView({ memoryId }: { memoryId: string }) {
-  const { state } = useDemoStore();
+  const { state, revision } = useDemoStore();
   const memory = state.memories.find((item) => item.id === memoryId);
 
   if (!memory) {
@@ -26,5 +26,7 @@ export function MemoryEditView({ memoryId }: { memoryId: string }) {
     );
   }
 
-  return <MemoryForm memory={memory} />;
+  // 데모 리셋이 일어나면 폼을 다시 마운트한다.
+  // 리셋은 기존 기록의 사진 objectURL을 해제하므로 낡은 draft를 그대로 두면 깨진 사진이 남는다.
+  return <MemoryForm key={revision} memory={memory} />;
 }

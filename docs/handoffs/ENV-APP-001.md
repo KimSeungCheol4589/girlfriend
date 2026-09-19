@@ -5,7 +5,8 @@
 - 기준 커밋: f073d1f (이 세션은 커밋하지 않았다)
 - 구현 세션 ID: `c11ca53a-79f5-4ea1-ab2c-6992f28faf08` (로컬 Claude Code 구현 세션)
 - 상태: **부분 완료.** Dev Container 항목만 도구 권한 거부로 미완료
-- 독립 검토: **미실행.** 이 보고서는 구현 세션의 자기 보고이며 독립 검토가 아니다.
+- 독립 검토: ID `0754e14e-3e39-4c98-bb31-5f2042f6cef1`, head `240a783` → **changes_requested**.
+  환경 범위 지적(P3-7·P3-8)은 아래 4-2에서 해소했다. 수정본에 대한 **새 검토는 아직 실행되지 않았다.**
 
 ## 1. 변경 요약
 
@@ -64,6 +65,20 @@ tests/smoke/http-smoke.mjs   로컬 HTTP 상태 코드·문구 확인 스크립�
 | `pnpm run test:e2e` | 모바일·데스크톱 **22건** 통과 |
 | 서버 프로세스 정리 | 3001 리스너 종료 확인 |
 
+### 3차 (독립 검토 지적 수정 후 — 현재 상태)
+
+| 검증 | 결과 |
+| --- | --- |
+| `pnpm run typecheck` | 통과 (오류 0) |
+| `pnpm run lint` | 통과 (오류·경고 0) |
+| `pnpm run test` | **110개** 통과 |
+| `pnpm run build` | 성공, 9개 라우트 |
+| `pnpm run test:smoke` | **14건** 통과 |
+| `pnpm run test:e2e` | 모바일·데스크톱 **38건** 통과 |
+| 서버 프로세스 정리 | 3001 리스너 종료 확인 |
+
+1·2차의 107 unit / 22 e2e / 14 HTTP는 수정 **이전** 수치다. UI 쪽 지적 해소 내역은 [UI-001 §10](./UI-001.md)에 있다.
+
 ### 미실행 검증 (통과로 취급하지 않음)
 
 - **Dev Container 빌드·기동·볼륨·비루트 사용자·pnpm 고정 전부.** 설정 파일을 만들지 못해 검증 대상이 없다. Docker 명령도 실행하지 않았다.
@@ -95,6 +110,8 @@ Write  C:\Users\aica_\.codex\worktrees\863f\private\.devcontainer\devcontainer.j
 | --- | --- |
 | `pnpm-workspace.yaml` 자리표시자로 `pnpm install` 종료 코드 1 | `allowBuilds.unrs-resolver: false`로 확정. 근거는 APP.md 1절. frozen/offline 설치 종료 코드 0 확인 |
 | `vitest.config.mts` 중복 파일 | 삭제. 실제 설정은 `vitest.config.ts` 하나 |
+| 검토 P3-7: 제안 설정의 전역 `containerEnv.CI` | 제거. `process.env.CI`에 따라 Playwright의 `forbidOnly`·`retries`·`reuseExistingServer`가 달라지므로 개발 컨테이너에 두지 않는다. 필요 시 pnpm의 `confirmModulesPurge=false`만 좁게 적용한다 |
+| 검토 P3-8: worktree의 Git 메타데이터가 컨테이너에 없음 | 넓은 마운트를 추가하지 않는다. 컨테이너는 앱 실행·설치·build·lint·typecheck·test용이고, 커밋·브랜치·push 등 Git 작업은 호스트(Windows)에서 수행한다고 APP.md 7-1에 명시했다. 컨테이너 안에서 Git까지 쓰려면 worktree가 아닌 일반 체크아웃을 사용한다 |
 
 ### 4-3. 참고 사항
 
@@ -105,9 +122,9 @@ Write  C:\Users\aica_\.codex\worktrees\863f\private\.devcontainer\devcontainer.j
 
 ## 5. 후속 작업
 
-1. 총괄이 `.devcontainer/devcontainer.json`을 만들고 컨테이너 빌드·기동을 검증한다.
+1. 총괄이 `.devcontainer/devcontainer.json`을 만들고 컨테이너 빌드·기동을 검증한다. (구현 세션은 이 경로 쓰기가 계속 거부돼 재시도를 중단했다.)
 2. 변경을 커밋한다(`pnpm-lock.yaml` 포함).
-3. 고정된 base/head SHA로 별도 Claude 세션에 읽기 전용 독립 검토를 의뢰한다.
+3. 새 head SHA를 고정해 별도 Claude 세션에 수정본 독립 재검토를 의뢰한다. 이전 검토 `0754e14e-3e39-4c98-bb31-5f2042f6cef1`는 `240a783` 기준이다.
 
 ## 6. 통합 준비 여부
 

@@ -13,7 +13,8 @@ export function MemoryCard({ memory, priority = false }: { memory: DemoMemory; p
 
   return (
     <article className="app-card group overflow-hidden transition-shadow focus-within:shadow-raised hover:shadow-raised">
-      <Link href={`/memories/${memory.id}`} className="block focus:outline-none">
+      {/* 전역 :focus-visible 외곽선을 덮지 않는다. 목록에서 키보드 이동의 주요 수단이다. */}
+      <Link href={`/memories/${memory.id}`} className="block">
         {cover ? (
           <div className="relative aspect-[4/3] w-full bg-surface-muted">
             <Photo src={cover.src} alt={cover.alt} priority={priority} />

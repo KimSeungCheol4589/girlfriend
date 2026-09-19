@@ -27,7 +27,8 @@ function FilterChip({
   return (
     <Link
       href={href}
-      aria-pressed={active}
+      // 링크에는 aria-pressed를 쓸 수 없다(role=button 전용). 현재 선택은 aria-current로 알린다.
+      aria-current={active ? 'true' : undefined}
       className={`inline-flex min-h-[36px] items-center rounded-pill border px-3.5 text-sm font-medium transition-colors ${
         active
           ? 'border-accent bg-accent text-accent-contrast'

@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 import { AppShell } from '@/components/AppShell';
+import { UnsavedGuardProvider } from '@/components/UnsavedGuard';
 import { DemoStoreProvider } from '@/lib/demo/demo-store';
 
 export const metadata: Metadata = {
@@ -28,7 +29,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko" data-theme="cream">
       <body className="min-h-dvh antialiased">
         <DemoStoreProvider>
-          <AppShell>{children}</AppShell>
+          <UnsavedGuardProvider>
+            <AppShell>{children}</AppShell>
+          </UnsavedGuardProvider>
         </DemoStoreProvider>
       </body>
     </html>

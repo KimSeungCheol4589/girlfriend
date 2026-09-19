@@ -2,11 +2,33 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 
+import { APP_ROOT_ID } from '@/components/ConfirmDialog';
 import { DemoModeBanner } from '@/components/DemoModeBanner';
 import { ThemeScope } from '@/components/ThemeScope';
+import { useUnsavedGuardControls } from '@/components/UnsavedGuard';
 import { useDemoStore } from '@/lib/demo/demo-store';
+
+/**
+ * 앱이 그리는 이동 링크.
+ * 현재 화면에 미저장 변경이 있으면 이동을 멈추고 확인 대화상자를 띄운다.
+ */
+function NavLink({ href, children, ...rest }: ComponentProps<typeof Link> & { href: string }) {
+  const { requestNavigate } = useUnsavedGuardControls();
+
+  return (
+    <Link
+      href={href}
+      onClick={(event) => {
+        if (requestNavigate(href)) event.preventDefault();
+      }}
+      {...rest}
+    >
+      {children}
+    </Link>
+  );
+}
 
 type NavItem = {
   href: string;
@@ -84,7 +106,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { customization, space } = state;
 
   return (
-    <>
+    // 확인 대화상자가 열리면 이 영역 전체를 inert로 비활성화한다.
+    <div id={APP_ROOT_ID}>
       <ThemeScope themeKey={customization.themeKey} accentColor={customization.accentColor} />
       <a
         href="#main"
@@ -97,12 +120,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <header className="sticky top-0 z-30 border-b border-border bg-background-blur backdrop-blur">
         <div className="app-container flex min-h-touch items-center gap-4 py-2">
-          <Link
+          <NavLink
             href="/"
             className="tap-target -ml-2 shrink-0 rounded-pill px-2 text-base font-bold tracking-tight text-text"
           >
             {space.name}
-          </Link>
+          </NavLink>
 
           <nav aria-label="주요 메뉴" className="ml-auto hidden md:block">
             <ul className="flex items-center gap-1">
@@ -110,7 +133,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 const active = isActive(pathname, item.href);
                 return (
                   <li key={item.href}>
-                    <Link
+                    <NavLink
                       href={item.href}
                       aria-current={active ? 'page' : undefined}
                       className={`tap-target gap-2 rounded-pill px-4 text-sm font-semibold transition-colors ${
@@ -121,14 +144,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                     >
                       {item.icon}
                       {item.label}
-                    </Link>
+                    </NavLink>
                   </li>
                 );
               })}
             </ul>
           </nav>
 
-          <Link
+          <NavLink
             href="/settings"
             aria-current={isActive(pathname, '/settings') ? 'page' : undefined}
             className="tap-target ml-auto shrink-0 gap-2 rounded-pill px-3 text-sm font-semibold text-muted transition-colors hover:bg-surface-muted hover:text-text md:ml-0"
@@ -139,7 +162,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </svg>
             <span className="hidden sm:inline">설정</span>
             <span className="sr-only sm:hidden">설정</span>
-          </Link>
+          </NavLink>
         </div>
       </header>
 
@@ -156,7 +179,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             const active = isActive(pathname, item.href);
             return (
               <li key={item.href} className="flex-1">
-                <Link
+                <NavLink
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
                   className={`flex min-h-touch w-full flex-col items-center justify-center gap-0.5 px-1 py-2 text-[11px] font-semibold transition-colors ${
@@ -165,12 +188,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                 >
                   {item.icon}
                   {item.label}
-                </Link>
+                </NavLink>
               </li>
             );
           })}
         </ul>
       </nav>
-    </>
+    </div>
   );
 }

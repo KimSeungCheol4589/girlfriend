@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ErrorNotice } from '@/components/ErrorNotice';
+import { useUnsavedGuard } from '@/components/UnsavedGuard';
 import { PhotoUploader } from '@/features/memories/components/PhotoUploader';
 import {
   MEMORY_FIELD_ORDER,
@@ -56,6 +58,7 @@ const FIELD_IDS = {
 
 export function MemoryForm({ memory }: { memory?: DemoMemory }) {
   const isEdit = memory !== undefined;
+  const router = useRouter();
   const { createMemory, updateMemory } = useDemoStore();
 
   const [form, setForm] = useState<FormState>(() => initialFormState(memory));
@@ -71,13 +74,49 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
   const summaryRef = useRef<HTMLDivElement>(null);
-  const baseline = useRef(JSON.stringify({ form: initialFormState(memory), photoCount: photos.length }));
+
+  // 사진 목록은 개수가 아니라 id 순서로 비교한다.
+  // 그래야 순서 변경이나 '1장 빼고 1장 추가'처럼 개수가 같은 변경도 미저장으로 잡힌다.
+  const baseline = useRef(
+    JSON.stringify({
+      form: initialFormState(memory),
+      photoIds: (memory?.photos ?? []).map((photo) => photo.id),
+    }),
+  );
 
   const isDirty =
     savedId === null &&
-    JSON.stringify({ form, photoCount: photos.length }) !== baseline.current;
+    JSON.stringify({ form, photoIds: photos.map((photo) => photo.id) }) !== baseline.current;
+
+  /**
+   * 이 폼이 만든 미리보기 objectURL의 소유권 추적.
+   *
+   * created: 이 폼에서 새로 만든 주소. saved: 저장에 성공해 저장소로 넘긴 주소.
+   * 언마운트 시 created 중 저장소로 넘어가지 않은 것만 해제한다.
+   * 기존 기록에서 온 사진은 created에 없으므로, 편집을 취소해도 해제되지 않는다.
+   */
+  const createdUrlsRef = useRef<Set<string>>(new Set());
+  const handedToStoreRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const created = createdUrlsRef.current;
+    const handed = handedToStoreRef.current;
+    return () => {
+      for (const url of created) {
+        if (!handed.has(url)) URL.revokeObjectURL(url);
+      }
+    };
+  }, []);
+
+  const handlePhotosChange = (next: DemoPhoto[]) => {
+    for (const photo of next) {
+      if (photo.src.startsWith('blob:')) createdUrlsRef.current.add(photo.src);
+    }
+    setPhotos(next);
+  };
 
   // DESIGN.md 9: 브라우저를 닫으면 미저장 글은 사라진다. 최소한 확인은 띄운다.
+  // 앱 안의 메뉴 이동은 아래 가드가 맡는다. 브라우저 뒤로/앞으로 가기 버튼은 막을 수 없다.
   useEffect(() => {
     if (!isDirty) return undefined;
     const handler = (event: BeforeUnloadEvent) => {
@@ -88,9 +127,24 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
+  useUnsavedGuard(isDirty, {
+    title: '저장하지 않은 기록이 있어요',
+    description: '쓰던 제목·내용·사진 선택은 사라집니다. 임시 저장은 아직 없습니다. 이동할까요?',
+    confirmLabel: '이동하기',
+    cancelLabel: '계속 쓰기',
+  });
+
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
     setSaveError(null);
+  };
+
+  /**
+   * 취소 시 이동할 곳.
+   * history.back()은 이 폼이 첫 진입 페이지일 때 앱 밖으로 나가므로 쓰지 않는다.
+   */
+  const leave = () => {
+    router.push(isEdit ? `/memories/${memory.id}` : '/memories');
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -112,9 +166,10 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
       // DESIGN.md 9: 상단 요약을 보여 주고 첫 오류 필드로 포커스를 옮긴다.
       const firstField = MEMORY_FIELD_ORDER.find((field) => result.fieldErrors[field] !== undefined);
       const elementId = firstField ? FIELD_IDS[firstField] : undefined;
-      if (elementId) {
-        document.getElementById(elementId)?.focus();
-      } else {
+      const target = elementId ? document.getElementById(elementId) : null;
+      target?.focus();
+      // 사진 영역처럼 포커스를 받지 못하는 대상이면 상단 요약으로 되돌린다.
+      if (!target || document.activeElement !== target) {
         summaryRef.current?.focus();
       }
       return;
@@ -139,6 +194,10 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
       return;
     }
 
+    // 저장에 성공한 주소는 저장소가 소유한다. 언마운트 정리 대상에서 뺀다.
+    for (const photo of photos) {
+      if (photo.src.startsWith('blob:')) handedToStoreRef.current.add(photo.src);
+    }
     setSavedId(saved.data.id);
   };
 
@@ -337,7 +396,7 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
           <div id={FIELD_IDS.photoCount}>
             <PhotoUploader
               photos={photos}
-              onChange={setPhotos}
+              onChange={handlePhotosChange}
               rejected={rejectedPhotos}
               onRejected={setRejectedPhotos}
             />
@@ -358,7 +417,7 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
                 setLeaveDialogOpen(true);
                 return;
               }
-              window.history.back();
+              leave();
             }}
             className="btn-secondary"
           >
@@ -382,7 +441,7 @@ export function MemoryForm({ memory }: { memory?: DemoMemory }) {
         onCancel={() => setLeaveDialogOpen(false)}
         onConfirm={() => {
           setLeaveDialogOpen(false);
-          window.history.back();
+          leave();
         }}
       />
     </>

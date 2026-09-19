@@ -24,6 +24,23 @@
     --cover-gradient: linear-gradient(135deg, #fbf1e3 0%, #f6e3d2 42%, #efd3c6 72%, #e7c3be 100%);
   }
 
+  /*
+   * cream 값은 :root에도 있지만, 미리보기처럼 중첩된 영역에서 다른 테마를 덮어쓰려면
+   * cream에도 같은 이름의 규칙이 필요하다. 규칙이 없으면 바깥 테마 값을 그대로 상속한다.
+   * 아래 세 블록의 변수 목록은 항상 같게 유지한다.
+   */
+  [data-theme='cream'] {
+    --color-background: #fbf7f1;
+    --color-surface: #fffdfa;
+    --color-surface-muted: #f4ece1;
+    --color-background-blur: rgba(251, 247, 241, 0.9);
+    --color-surface-blur: rgba(255, 253, 250, 0.95);
+    --color-text: #3a332e;
+    --color-muted: #877c72;
+    --color-border: #e9ddcd;
+    --cover-gradient: linear-gradient(135deg, #fbf1e3 0%, #f6e3d2 42%, #efd3c6 72%, #e7c3be 100%);
+  }
+
   [data-theme='rose'] {
     --color-background: #fdf5f5;
     --color-surface: #fffcfc;

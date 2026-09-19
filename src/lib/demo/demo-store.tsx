@@ -42,6 +42,12 @@ export type MemoryInput = {
 
 type DemoStoreValue = {
   state: DemoState;
+  /**
+   * 리셋할 때마다 증가한다.
+   * 저장소 값을 복사해 둔 화면(꾸미기 draft, 수정 폼)은 이 값을 key로 써서 다시 마운트한다.
+   * 그러지 않으면 이미 해제된 objectURL과 낡은 draft가 남는다.
+   */
+  revision: number;
   /** 예시 데이터에서 바뀐 부분이 있는지. 안내 문구에 사용한다. */
   isDirty: boolean;
   createMemory: (input: MemoryInput) => DemoResult<{ id: string }>;
@@ -98,6 +104,7 @@ function releasePhotos(previous: readonly DemoPhoto[], next: readonly DemoPhoto[
 export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<DemoState>(cloneInitialState);
   const [isDirty, setIsDirty] = useState(false);
+  const [revision, setRevision] = useState(0);
 
   const createMemory = useCallback(
     (input: MemoryInput): DemoResult<{ id: string }> => {
@@ -228,11 +235,14 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     if (state.coverPreview) revokePreviewUrl(state.coverPreview.objectUrl);
     setState(cloneInitialState());
     setIsDirty(false);
+    // 저장소 값을 복사해 둔 화면을 다시 마운트시킨다.
+    setRevision((current) => current + 1);
   }, [state]);
 
   const value = useMemo<DemoStoreValue>(
     () => ({
       state,
+      revision,
       isDirty,
       createMemory,
       updateMemory,
@@ -243,6 +253,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     }),
     [
       state,
+      revision,
       isDirty,
       createMemory,
       updateMemory,

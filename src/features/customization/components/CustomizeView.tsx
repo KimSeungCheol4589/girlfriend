@@ -15,12 +15,23 @@ import {
   toggleSection,
   validateCustomization,
 } from '@/features/customization/schema';
+import { useUnsavedGuard } from '@/components/UnsavedGuard';
 import { HOME_SECTION_LABELS, type HomeSectionKey } from '@/lib/contracts';
 import { useDemoStore } from '@/lib/demo/demo-store';
 import type { DemoCoverPreview } from '@/lib/demo/types';
 import { accentContrastColor, contrastRatio, isHexColor, THEME_PRESET_LIST } from '@/lib/theme';
 
+/**
+ * 데모 리셋('예시 데이터로 되돌리기')이 일어나면 편집기를 다시 마운트한다.
+ * 편집기의 draft는 저장소 값을 복사한 로컬 state라 리셋과 자동으로 동기화되지 않고,
+ * 리셋이 해제한 커버 objectURL이 draft에 남으면 깨진 이미지를 다시 적용할 수 있다.
+ */
 export function CustomizeView() {
+  const { revision } = useDemoStore();
+  return <CustomizeEditor key={revision} />;
+}
+
+function CustomizeEditor() {
   const { state, applyCustomization } = useDemoStore();
   const saved = state.customization;
   const savedCover = state.coverPreview;
@@ -62,6 +73,8 @@ export function CustomizeView() {
   };
 
   // DESIGN.md 4.2: 미저장 상태에서 화면을 벗어나려 하면 확인한다.
+  // 탭 닫기·새로고침은 beforeunload가, 앱 안의 메뉴 이동은 아래 가드가 맡는다.
+  // 브라우저 뒤로/앞으로 가기 버튼은 두 방법 모두로 막을 수 없다.
   useEffect(() => {
     if (!dirty) return undefined;
     const handler = (event: BeforeUnloadEvent) => {
@@ -71,6 +84,14 @@ export function CustomizeView() {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
+
+  useUnsavedGuard(dirty, {
+    title: '적용하지 않은 꾸미기 설정이 있어요',
+    description:
+      '지금 고른 테마·포인트 색상·커버·섹션 설정은 적용하지 않으면 사라집니다. 이동할까요?',
+    confirmLabel: '이동하기',
+    cancelLabel: '계속 꾸미기',
+  });
 
   const patch = (next: Partial<typeof draft>) => {
     setDraft((current) => ({ ...current, ...next }));

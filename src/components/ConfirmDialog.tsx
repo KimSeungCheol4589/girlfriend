@@ -1,11 +1,27 @@
 'use client';
 
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
+
+/** 대화상자가 열렸을 때 배경을 비활성화할 영역. AppShell이 이 id를 단다. */
+export const APP_ROOT_ID = 'app-shell-root';
+
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
 
 /**
  * 삭제·이탈 확인 대화상자.
- * DESIGN.md 9: 대상 제목과 함께 지워지는 항목을 표시하고, Esc·취소로 되돌릴 수 있게 한다.
+ *
+ * DESIGN.md 9: 대상 제목과 함께 지워지는 항목을 표시하고 Esc·취소로 되돌릴 수 있게 한다.
+ * 접근성: 열릴 때 포커스를 안으로 옮기고 Tab을 대화상자 안에서만 돌린다.
+ * 배경은 inert로 비활성화하고 스크롤을 잠그며, 닫을 때 원래 요소로 포커스를 되돌린다.
  */
 export function ConfirmDialog({
   open,
@@ -30,36 +46,78 @@ export function ConfirmDialog({
 }) {
   const headingId = useId();
   const descriptionId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return undefined;
 
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const appRoot = document.getElementById(APP_ROOT_ID);
+    const previousOverflow = document.body.style.overflow;
+
+    appRoot?.setAttribute('inert', '');
+    document.body.style.overflow = 'hidden';
     confirmRef.current?.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
         onCancel();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const container = dialogRef.current;
+      if (!container) return;
+
+      const focusable = Array.from(
+        container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ).filter((element) => element.offsetParent !== null);
+      if (focusable.length === 0) return;
+
+      const first = focusable[0] as HTMLElement;
+      const last = focusable[focusable.length - 1] as HTMLElement;
+      const active = document.activeElement;
+
+      // 대화상자 밖으로 나가지 않도록 양끝에서 순환시킨다.
+      if (event.shiftKey && (active === first || !container.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !container.contains(active))) {
+        event.preventDefault();
+        first.focus();
       }
     };
 
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    document.addEventListener('keydown', onKeyDown, true);
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      appRoot?.removeAttribute('inert');
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus?.();
+    };
   }, [open, onCancel]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2B2522]/40 p-4 sm:items-center">
-      <button
-        type="button"
-        aria-label="닫기"
+      {/* 배경 클릭으로 닫는다. 포커스 순서에는 넣지 않는다. */}
+      <div
+        aria-hidden
         onClick={onCancel}
         className="absolute inset-0 h-full w-full cursor-default"
-        tabIndex={-1}
       />
       <div
+        ref={dialogRef}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={headingId}
@@ -91,6 +149,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

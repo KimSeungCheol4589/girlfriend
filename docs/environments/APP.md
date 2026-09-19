@@ -140,6 +140,20 @@ playwright.config.ts  mobile(Pixel 7) / desktop 프로젝트, webServer로 next 
 | `pnpm run test:e2e` | Chromium 모바일·데스크톱 **22건** 통과 (커버 3건, 가로 넘침 1건 추가) |
 | 검증 후 서버 프로세스 정리 | 3001 리스너 종료 확인 |
 
+### 3차 (독립 검토 `0754e14e-3e39-4c98-bb31-5f2042f6cef1` / head `240a783` 지적 수정 후)
+
+| 검증 | 결과 |
+| --- | --- |
+| `pnpm run typecheck` | 통과, 오류 0 |
+| `pnpm run lint` | 통과, 경고·오류 0 |
+| `pnpm run test` | 6개 파일 **110개** 통과 (HEIC 확장자 판정 3개 추가) |
+| `pnpm run build` | 성공, 9개 라우트 |
+| `pnpm run test:smoke` | **14건** 통과 |
+| `pnpm run test:e2e` | 모바일·데스크톱 **38건** 통과 (P2 회귀 5건 + 대화상자 키보드 2건 추가) |
+| 검증 후 서버 프로세스 정리 | 3001 리스너 종료 확인 |
+
+1·2차 수치(107 unit / 22 e2e / 14 HTTP)는 이 수정 **이전** 결과다.
+
 ### HTTP smoke 대상
 
 `/`, `/memories`, `/memories?month=2026-09`, `/memories?month=not-a-month`, `/memories/new`,
@@ -218,12 +232,14 @@ Write  C:\Users\aica_\.codex\worktrees\863f\private\.devcontainer\devcontainer.j
     }
   ],
 
+  // CI는 넣지 않는다. playwright.config.ts가 process.env.CI로 forbidOnly·retries·
+  // reuseExistingServer를 바꾸므로, 개발 컨테이너에 전역으로 두면 컨테이너 안의 e2e 동작이
+  // 로컬과 달라지고 이미 떠 있는 3001 서버를 재사용하지 못한다. CI 값은 실제 CI에서만 설정한다.
   "containerEnv": {
     "PNPM_HOME": "/home/node/.pnpm/home",
     "COREPACK_HOME": "/home/node/.pnpm/corepack",
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
-    "NEXT_TELEMETRY_DISABLED": "1",
-    "CI": "true"
+    "NEXT_TELEMETRY_DISABLED": "1"
   },
   "remoteEnv": {
     "PATH": "${containerEnv:PNPM_HOME}:${containerEnv:PATH}"
@@ -261,6 +277,25 @@ Write  C:\Users\aica_\.codex\worktrees\863f\private\.devcontainer\devcontainer.j
 | pnpm 고정 기동 | `corepack prepare pnpm@11.19.0 --activate` 후 `pnpm --version` 확인 |
 | 신뢰 가능한 의존성 초기화 | `updateContentCommand: pnpm install --frozen-lockfile`, `postCreateCommand`로 실행 확인 |
 | Docker 소켓·privileged 없음 | `mounts`에 소켓 없음, `runArgs`·`privileged` 항목 자체가 없음 |
+| CI 환경 변수 없음 | `containerEnv`에 `CI`를 넣지 않는다. e2e 동작이 로컬과 같아진다 |
+
+`updateContentCommand`는 비대화형으로 실행된다. 혹시 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`가
+나오면 `CI` 같은 광범위한 환경 변수 대신 pnpm의 `confirmModulesPurge=false` 설정만 좁게 적용한다.
+
+### 이 컨테이너로 할 수 있는 일과 없는 일
+
+컨테이너는 **앱 실행과 검증용**이다. 설치·`dev`·`build`·`lint`·`typecheck`·`test`는 컨테이너 안에서 수행할 수 있다.
+
+**Git 명령은 컨테이너 안에서 동작하지 않는다.** 이 작업 폴더는 Windows 쪽 상위 저장소에 딸린 git worktree라
+`.git`이 디렉터리가 아니라 상위 저장소의 `.git/worktrees/...`를 가리키는 파일이다.
+위 설정은 워크스페이스 폴더만 마운트하므로 컨테이너 안에는 그 상위 경로가 존재하지 않는다.
+
+이 제약은 **의도한 것이다.** 상위 저장소 `.git`을 추가로 마운트하면 컨테이너에 저장소 전체 이력과
+자격 증명 설정까지 노출되므로, 넓은 마운트를 추가하지 않는다.
+
+따라서 **커밋·브랜치·push 등 Git 작업은 호스트(Windows)에서 수행한다.**
+AGENTS.md의 "담당 브랜치에 커밋" 절차는 호스트 기준이다.
+컨테이너 안에서 Git까지 쓰려면 worktree가 아닌 일반 체크아웃에서 Dev Container를 사용한다.
 
 이 파일을 만든 뒤 **실제 컨테이너 빌드·기동까지 수행해야** ENV-APP-001의 Dev Container 항목을 완료로 볼 수 있다.
 
@@ -268,6 +303,8 @@ Write  C:\Users\aica_\.codex\worktrees\863f\private\.devcontainer\devcontainer.j
 
 - `pnpm-workspace.yaml`의 `allowBuilds.unrs-resolver`를 `false`로 확정했다. `pnpm install --frozen-lockfile --offline` 종료 코드 0을 확인했다. (1절 참고)
 - 중복 설정 파일 `vitest.config.mts`를 삭제했다. 실제 설정은 `vitest.config.ts` 하나다.
+- 검토 P3-7: 제안 설정의 `containerEnv.CI`를 제거했다. 컨테이너 안 e2e 동작이 로컬과 같아진다.
+- 검토 P3-8: worktree의 Git 메타데이터가 컨테이너에 마운트되지 않는다는 점을 7-1에 명시했다. 넓은 마운트를 추가하는 대신 컨테이너를 앱 실행·검증용으로 한정하고 Git은 호스트에서 수행한다.
 
 ### 7-3. 남은 참고 사항
 

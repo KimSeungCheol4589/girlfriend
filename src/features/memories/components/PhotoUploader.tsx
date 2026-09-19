@@ -53,10 +53,9 @@ export function PhotoUploader({
   };
 
   const removeAt = (index: number) => {
-    const target = photos[index];
-    if (target && target.src.startsWith('blob:')) {
-      URL.revokeObjectURL(target.src);
-    }
+    // 여기서 objectURL을 해제하지 않는다.
+    // 편집을 취소하면 이 사진은 저장소에 그대로 남아 있어야 하고,
+    // 실제 해제는 저장(저장소) 또는 폼 언마운트 정리가 담당한다.
     onChange(photos.filter((_, i) => i !== index));
   };
 
