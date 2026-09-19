@@ -8,9 +8,9 @@
 
 | ID | 담당 | 범위·완료 기준 | 의존성 | 상태 |
 | --- | --- | --- | --- | --- |
-| OPS-001 | 총괄, 통합 | 협업 규칙, Worktree 분리, 첫 배분, 15분 자동화 등록 | 없음 | in_progress |
-| UI-001 | 홈, 추억, 꾸미기 | Next.js·TS·Tailwind 기본 앱, 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | 없음 | planned |
-| DB-001 | DB | DESIGN 기반 SQL migration, RLS·권한·초대·버전 처리 기반과 DB 테스트, 통합용 계약 문서 | 없음 | planned |
+| OPS-001 | 총괄, 통합 | 협업 규칙, Worktree 분리, 첫 배분, 15분 자동화 등록 | 없음 | integrated |
+| UI-001 | 홈, 추억, 꾸미기 | Next.js·TS·Tailwind 기본 앱, 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | 없음 | blocked |
+| DB-001 | DB | DESIGN 기반 SQL migration, RLS·권한·초대·버전 처리 기반과 DB 테스트, 통합용 계약 문서 | 없음 | blocked |
 | AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | planned |
 | MEM-001 | 홈, 추억, 꾸미기 | 추억 실제 CRUD·사진 업로드·필터 연결, 충돌·실패 처리 | AUTH-001 통합 | planned |
 | FOOD-001 | 총괄이 후속 배정 | 맛집 목록·방문 상태·개인 후기, 권한·상태 전이 검증 | AUTH-001 통합 | planned |
@@ -41,3 +41,8 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 - 서비스 자격 증명 없이 가능한 UI·SQL·테스트 작성부터 진행한다.
 - 작업 보고서는 docs/handoffs/에 저장한다. 담당자는 중앙 TASKS.md를 수정하지 않는다.
 - 일정 확인 자체로 코드 완료나 실제 서비스 설정 완료를 주장하지 않는다.
+- 2026-09-19: 담당 Worktree 2개와 기능 브랜치 분리 완료. Claude Code 2.1.273 실행·로그인 확인 완료. UI-001·DB-001 지시 전달 후 두 Codex 작업의 active 상태 확인.
+- 2026-09-19: 총괄 대화에서 15분 간격 heartbeat 활성화. 구현·독립 코드 검토는 Claude 담당이며 중요 변화만 보고하도록 설정.
+- 2026-09-19 후속: 두 로컬 Claude 구현 호출은 ConnectionRefused로 종료했고 제품 코드 변경은 없다. UI 차단 보고서 커밋 071b3794a50c05372c09f1dcc4c6d8e570da8019, DB 차단 보고서 커밋 05807f0a925c5dc9b1252d844a86f3cd0551addd는 각각 담당 브랜치에 있으며 구현 완료로 취급하지 않는다.
+- 사용자가 기존 Claude 데스크톱 세션을 지정했다. 총괄의 공식 CLI 메시지 전달은 성공했으나 세션의 저장소·답변 확인은 대기 중이다. 개인 세션 ID는 총괄의 로컬 .agent-runtime/claude-target.json에 기록한다.
+- 재개 조건: 지정 세션과 girlfriend 저장소의 연결 확인. 이후 지시는 총괄만 전달하며 담당 Codex 작업은 새 로컬 Claude 세션을 생성하지 않는다. DB 실제 검증에는 실행 가능한 테스트 DB 환경도 필요하다.
