@@ -14,7 +14,7 @@
 | ENV-APP-001 | UI Codex → 로컬 Claude | Node 22·pnpm 고정·Next.js 골격·Dev Container 설정·설치/build 검증 | 저장소 일치 확인 | integrated |
 | UI-001 | UI Codex → 로컬 Claude | 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | ENV-APP-001 | integrated |
 | DB-001 | DB | DESIGN 기반 SQL migration, RLS·권한·초대·버전 처리 기반과 DB 테스트, 통합용 계약 문서 | 없음 | integrated |
-| AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | in_progress |
+| AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | blocked |
 | MEM-001 | 홈, 추억, 꾸미기 | 추억 실제 CRUD·사진 업로드·필터 연결, 충돌·실패 처리 | AUTH-001 통합 | planned |
 | FOOD-001 | 총괄이 후속 배정 | 맛집 목록·방문 상태·개인 후기, 권한·상태 전이 검증 | AUTH-001 통합 | planned |
 | THEME-001 | 홈, 추억, 꾸미기 | 테마·커버·홈 구성의 실제 공유 저장과 미리보기 | MEM-001 통합 | planned |
@@ -68,3 +68,4 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 ## AUTH-001 후속 배정
 
 DB 담당은 최신 dev에서 codex/auth-foundation 브랜치로 시작한다. 소유 범위를 인증용 src/lib/supabase, src/features/auth, 로그인·콜백·온보딩·초대·설정 화면, 세션 갱신 미들웨어, 인증 연결에 필요한 app layout/AppShell, .env.example, package.json/pnpm-lock.yaml, 인증 테스트·문서로 확장한다. UI 담당은 이 작업 동안 공통 앱 파일을 수정하지 않는다. 기존 데모 UI는 명시적 데모 진입으로 구분하고 환경 누락 시 실제 인증 성공으로 표시하지 않는다. 로컬 Supabase 합성 계정으로 로그인·로그아웃·세션·공간 생성·초대·외부 계정 차단을 검증하며 운영 계정/SMTP/배포 설정은 변경하지 않는다. DB SQL 계약 변경은 사유·영향과 회귀 검증을 보고한다. 구현·새 독립 검토를 Claude가 수행하며 다음 기능은 별도 배정한다.
+- 2026-09-20 AUTH-001: 제품 6c24736, 보고 e69b89e. 담당 보고상 unit200/demo E2E48/실제 인증 E2E21 통과. Claude session limit으로 독립 검토 미실행. 03:20 KST 이후 새 읽기전용 검토 재배정, 승인 전 통합 보류. 기존 보고·push 승인 문제는 총괄이 로컬 보고서를 읽어 인수했으며 사용자의 저장소 통합 승인 범위에서 후속 처리한다.
