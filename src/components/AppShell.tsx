@@ -5,10 +5,9 @@ import { usePathname } from 'next/navigation';
 import type { ComponentProps, ReactNode } from 'react';
 
 import { APP_ROOT_ID } from '@/components/ConfirmDialog';
-import { DemoModeBanner } from '@/components/DemoModeBanner';
 import { ThemeScope } from '@/components/ThemeScope';
 import { useUnsavedGuardControls } from '@/components/UnsavedGuard';
-import { useDemoStore } from '@/lib/demo/demo-store';
+import type { ThemeKey } from '@/lib/contracts';
 
 /**
  * 앱이 그리는 이동 링크.
@@ -31,7 +30,8 @@ function NavLink({ href, children, ...rest }: ComponentProps<typeof Link> & { hr
 }
 
 type NavItem = {
-  href: string;
+  /** basePath를 붙이기 전의 경로. */
+  path: string;
   label: string;
   icon: ReactNode;
 };
@@ -49,7 +49,7 @@ const iconProps = {
 
 const NAV_ITEMS: NavItem[] = [
   {
-    href: '/',
+    path: '/',
     label: '홈',
     icon: (
       <svg {...iconProps}>
@@ -59,7 +59,7 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
-    href: '/memories',
+    path: '/memories',
     label: '추억',
     icon: (
       <svg {...iconProps}>
@@ -71,7 +71,7 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
-    href: '/restaurants',
+    path: '/restaurants',
     label: '맛집',
     icon: (
       <svg {...iconProps}>
@@ -82,7 +82,7 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
-    href: '/customize',
+    path: '/customize',
     label: '꾸미기',
     icon: (
       <svg {...iconProps}>
@@ -95,20 +95,49 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-function isActive(pathname: string, href: string): boolean {
-  if (href === '/') return pathname === '/';
+function isActive(pathname: string, href: string, homeHref: string): boolean {
+  if (href === homeHref) return pathname === homeHref;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export type AppShellProps = {
+  children: ReactNode;
+  /** 헤더에 보여 줄 공간 이름. */
+  spaceName: string;
+  themeKey: ThemeKey;
+  accentColor: string;
+  /**
+   * 메뉴 링크 앞에 붙는 경로. 실제 화면은 '', 데모 화면은 '/demo'다.
+   * 같은 껍데기를 쓰되 두 모드의 URL이 섞이지 않게 한다.
+   */
+  basePath?: string;
+  /** 데모 고지처럼 헤더 위에 붙는 띠. 실제 화면에서는 비운다. */
+  banner?: ReactNode;
+  /** 헤더 오른쪽에 추가로 넣을 요소(예: 로그아웃). */
+  headerActions?: ReactNode;
+};
+
+export function AppShell({
+  children,
+  spaceName,
+  themeKey,
+  accentColor,
+  basePath = '',
+  banner = null,
+  headerActions = null,
+}: AppShellProps) {
   const pathname = usePathname();
-  const { state } = useDemoStore();
-  const { customization, space } = state;
+  const homeHref = basePath === '' ? '/' : basePath;
+  const settingsHref = `${basePath}/settings`;
+  const navItems = NAV_ITEMS.map((item) => ({
+    ...item,
+    href: item.path === '/' ? homeHref : `${basePath}${item.path}`,
+  }));
 
   return (
     // 확인 대화상자가 열리면 이 영역 전체를 inert로 비활성화한다.
     <div id={APP_ROOT_ID}>
-      <ThemeScope themeKey={customization.themeKey} accentColor={customization.accentColor} />
+      <ThemeScope themeKey={themeKey} accentColor={accentColor} />
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-pill focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:text-accent-contrast"
@@ -116,21 +145,21 @@ export function AppShell({ children }: { children: ReactNode }) {
         본문으로 건너뛰기
       </a>
 
-      <DemoModeBanner />
+      {banner}
 
       <header className="sticky top-0 z-30 border-b border-border bg-background-blur backdrop-blur">
         <div className="app-container flex min-h-touch items-center gap-4 py-2">
           <NavLink
-            href="/"
+            href={homeHref}
             className="tap-target -ml-2 shrink-0 rounded-pill px-2 text-base font-bold tracking-tight text-text"
           >
-            {space.name}
+            {spaceName}
           </NavLink>
 
           <nav aria-label="주요 메뉴" className="ml-auto hidden md:block">
             <ul className="flex items-center gap-1">
-              {NAV_ITEMS.map((item) => {
-                const active = isActive(pathname, item.href);
+              {navItems.map((item) => {
+                const active = isActive(pathname, item.href, homeHref);
                 return (
                   <li key={item.href}>
                     <NavLink
@@ -152,8 +181,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
 
           <NavLink
-            href="/settings"
-            aria-current={isActive(pathname, '/settings') ? 'page' : undefined}
+            href={settingsHref}
+            aria-current={isActive(pathname, settingsHref, homeHref) ? 'page' : undefined}
             className="tap-target ml-auto shrink-0 gap-2 rounded-pill px-3 text-sm font-semibold text-muted transition-colors hover:bg-surface-muted hover:text-text md:ml-0"
           >
             <svg {...iconProps}>
@@ -163,6 +192,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="hidden sm:inline">설정</span>
             <span className="sr-only sm:hidden">설정</span>
           </NavLink>
+
+          {headerActions}
         </div>
       </header>
 
@@ -175,8 +206,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface-blur pb-[env(safe-area-inset-bottom,0px)] backdrop-blur md:hidden"
       >
         <ul className="mx-auto flex max-w-content">
-          {NAV_ITEMS.map((item) => {
-            const active = isActive(pathname, item.href);
+          {navItems.map((item) => {
+            const active = isActive(pathname, item.href, homeHref);
             return (
               <li key={item.href} className="flex-1">
                 <NavLink

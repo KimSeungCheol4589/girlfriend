@@ -33,5 +33,15 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    // 이 스위트는 데모 화면만 검증한다. 로컬에 Supabase 설정이 있어도 데모 모드로 띄운다.
+    // (인증 E2E는 playwright.auth.config.ts에서 포트 3002로 따로 실행한다.)
+    env: {
+      ...(Object.fromEntries(
+        Object.entries(process.env).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string',
+        ),
+      ) as Record<string, string>),
+      NEXT_PUBLIC_DEMO_MODE: 'true',
+    },
   },
 });
