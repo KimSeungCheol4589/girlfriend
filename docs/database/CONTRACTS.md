@@ -3,14 +3,14 @@
 작성일: 2026-09-19 · 대상: Server Action 구현(AUTH-001, MEM-001, FOOD-001, THEME-001)
 
 DESIGN 7절의 서버 작업 이름을 DB 함수로 구현한 것이다.
-**아래 함수는 이 문서를 쓴 시점에 SQL로 작성만 했고 실행 검증은 하지 않았다.**
-총괄이 마이그레이션을 적용하고 `supabase/tests`를 실행한 결과가 나오기 전에는
-"동작 확인됨"으로 인용하지 않는다.
+**로컬 migration 16개 적용, SQL 스위트 7개·294개 단언과 동시성 시나리오 5개가 통과했다.**
+앱·실제 Storage HTTP 연결은 별도 미검증이며, 최종 검증 범위는
+[인수인계 보고서](../handoffs/DB-001.md)를 따른다.
 
 ## 0. 공통 규칙
 
-- 호출 방법: Supabase 클라이언트의 `rpc('함수명', { ... })`. 모든 함수는 `public` 스키마에 있고 `authenticated`만 실행할 수 있다.
-- 사용자와 공간 소속은 **서버가 세션에서 확인**한다. 어떤 함수도 `userId`/`spaceId`를 입력으로 받지 않는다.
+- 호출 방법: Supabase 클라이언트의 `rpc('함수명', { ... })`. 제품 RPC는 `public` 스키마에 있다. 사용자 RPC는 `authenticated`, `finalize_upload`는 신뢰된 서버 역할만 실행한다.
+- 사용자와 공간 소속은 **서버가 세션에서 확인**한다. 사용자 RPC는 `userId`/`spaceId`를 입력으로 받지 않는다. 서버 전용 `finalize_upload`의 `p_uploader_id`는 아래 별도 계약을 따른다.
 - 이메일은 `auth.users.email` + `email_confirmed_at`에서 읽는다. JWT의 `email` 클레임과 클라이언트 입력은 신뢰하지 않는다.
 - 성공 시 `jsonb` 객체를 반환한다. 실패는 **예외**로 던지고 트랜잭션을 되돌린다.
 - `p_request_id`(uuid)는 **모든 변경 함수에서 필수**다. 같은 사용자·같은 requestId·같은 입력은 이전 결과를 그대로 돌려주고, 같은 키에 다른 입력이면 거부한다.
@@ -19,7 +19,7 @@ DESIGN 7절의 서버 작업 이름을 DB 함수로 구현한 것이다.
 
 ### 오류 매핑
 
-예외의 SQLSTATE가 계약이다. `MESSAGE`에는 DESIGN 오류 코드 문자열만, `DETAIL`에는 필드 힌트 JSON만 들어간다.
+예외의 SQLSTATE가 계약이다. `MESSAGE`에는 DESIGN 오류 코드 문자열만, `DETAIL`에는 필드 힌트 또는 오류 경로 진단 JSON이 들어간다.
 사용자 본문·이메일·토큰은 어떤 필드에도 넣지 않는다.
 
 | SQLSTATE | MESSAGE | 앱 응답 code | 의미 |
@@ -39,6 +39,7 @@ DESIGN 7절의 서버 작업 이름을 DB 함수로 구현한 것이다.
 알려진 동시 실행 경쟁(서로 다른 공간 동시 수락, 첫 프로필 동시 생성, 사진 동시 첨부)은
 원시 `23505`가 아니라 `GF409`로 매핑된다. 앱에서 `23505`를 따로 처리할 필요가 없다.
 `23505`가 실제로 올라오면 계약에 없는 경로이므로 보고 대상이다.
+`accept_invite`/`update_profile`의 GF409에 포함될 수 있는 `path: unique_violation`은 진단용 예약 키다. 입력 필드가 아니므로 `fieldErrors`로 옮기지 않는다.
 
 `FORBIDDEN`은 DESIGN 7절 목록에 없던 코드다. `/onboarding`의 "생성 권한 없음" 상태를
 `VALIDATION_ERROR`로 뭉개지 않기 위해 추가했다(설계 차이, [SECURITY.md](./SECURITY.md) 참고).
@@ -116,7 +117,8 @@ DESIGN `acceptInvite`, 8.1 흐름.
 - 이중 방어: 요청에 최종 사용자 세션 컨텍스트(`auth.uid()` 또는 `service_role`이 아닌 JWT role)가
   실려 있으면 권한이 잘못 부여돼 있어도 `GF403`으로 거부한다.
 - 이미 `ready`면 같은 성공 응답을 돌려준다(멱등). 멱등성 키의 주인은 `p_uploader_id`다.
-- 반환: `{"assetId": uuid, "objectPath": text, "state": "ready", "expiresAt": timestamptz}`
+- 반환: `{"assetId": uuid, "objectPath": text, "state": "ready", "expiresAt": timestamptz | null}`
+- `expiresAt`은 이미 첨부된 ready 자산이면 null이다. 새 requestId로 재확정해도 저장된 만료 값을 반환하며 만료를 연장하지 않는다.
 - 오류: `42501`(로그인 사용자 호출), `GF403`(최종 사용자 세션), `GF404`(업로더 불일치·없는 사용자·없는 asset),
   `GF412`(만료·삭제 예정·MIME 불일치·크기/치수 상한), `GF422`(uploaderId 누락)
 
