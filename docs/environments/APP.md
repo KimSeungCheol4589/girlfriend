@@ -250,3 +250,5 @@ devcontainer exec --workspace-folder . pnpm run dev
 운영 시 devcontainer exec를 사용한다. 순수 docker exec는 remoteEnv.PATH를 적용하지 않는다. 초기화 실패 시 이를 먼저 해결하고 up을 다시 실행한 뒤 설치한다. 호스트에서 lockfile을 변경하면 컨테이너에서 pnpm install --frozen-lockfile을 다시 실행한다. .next는 별도 볼륨이며 tsconfig.tsbuildinfo와 test-results는 공유되므로 호스트와 컨테이너에서 검사를 동시에 실행하지 않는다. 검증 후 앱 컨테이너는 중지했고 볼륨은 재개용으로 유지했다. 완전히 폐기할 때는 해당 Worktree 라벨로 컨테이너 ID와 마운트 볼륨명을 확인하고 그 컨테이너 및 볼륨만 제거한다. 다른 작업의 볼륨이나 전체 prune 명령을 사용하지 않는다.
 
 독립 검토 ecffae53-1747-4bf2-b50b-abe9db5204fa의 ENV-3-1~4 후속: 설치 명령에만 --config.confirmModulesPurge=false 적용, .next 전용 볼륨과 소유권 초기화 추가, fallback /.pnpm-store/ 무시, 오래된 상태·설정 전문 제거 및 최신 보고 갱신. pnpm 11은 해당 옵션을 전역 config.yaml에 저장하는 것을 거부하므로 명령 범위로 적용했다. 기존 볼륨을 유지한 컨테이너 재생성에서 모든 lifecycle 성공을 확인했다. 수동 비대화형 재설치도 pnpm --config.confirmModulesPurge=false install --frozen-lockfile을 사용한다. 초기화 실패 시 설정 완료 전 설치를 수동으로 실행하지 않는다.
+
+최종 새 독립 검토 0535630f-1df7-498b-805e-c149990fae08은 head 9e97aa2를 승인했다. 제품 코드는 d429216이다. .next 격리 이후 build·typecheck·HTTP 14개 재통과 및 호스트 BUILD_ID 해시 불변을 확인했다. 최초 기동 뒤에는 pnpm run build를 한 번 실행한 후 typecheck를 수행한다. 기존 볼륨 재생성은 검증했지만 설정 불일치에 따른 실제 purge 분기 강제 재현은 하지 않았다.
