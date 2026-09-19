@@ -11,8 +11,8 @@
 | OPS-001 | 총괄, 통합 | 협업 규칙, Worktree 분리, 첫 배분, 15분 자동화 등록 | 없음 | integrated |
 | ENV-UI-001 | 홈, 추억, 꾸미기 (Codex) | 격리된 패키지 매니저 준비·설치 smoke test·포트 확인·환경 보고 | 없음 | integrated |
 | ENV-DB-001 | DB (Codex) | Docker 엔진·가상화 상태 확인, 로컬 테스트 DB 도구 준비·실제 서비스 및 SQL 접속 확인 | 없음 | integrated |
-| ENV-APP-001 | UI Codex → 로컬 Claude | Node 22·pnpm 고정·Next.js 골격·Dev Container 설정·설치/build 검증 | 저장소 일치 확인 | in_progress |
-| UI-001 | UI Codex → 로컬 Claude | 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | ENV-APP-001 | in_progress |
+| ENV-APP-001 | UI Codex → 로컬 Claude | Node 22·pnpm 고정·Next.js 골격·Dev Container 설정·설치/build 검증 | 저장소 일치 확인 | blocked |
+| UI-001 | UI Codex → 로컬 Claude | 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | ENV-APP-001 | ready |
 | DB-001 | DB | DESIGN 기반 SQL migration, RLS·권한·초대·버전 처리 기반과 DB 테스트, 통합용 계약 문서 | 없음 | in_progress |
 | AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | planned |
 | MEM-001 | 홈, 추억, 꾸미기 | 추억 실제 CRUD·사진 업로드·필터 연결, 충돌·실패 처리 | AUTH-001 통합 | planned |
@@ -59,3 +59,4 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 - 2026-09-19 DB 환경 완료: 프로젝트 전용 6개 서비스 실행 및 접속 확인. API 127.0.0.1:56321, PostgreSQL 127.0.0.1:56322, 테스트 메일 127.0.0.1:56324. 환경 유지·중지·재개는 docs/environments/DB.md의 지정 컨테이너 명령을 사용한다. pre-loopback 백업 컨테이너는 시작하지 않는다.
 
 - 2026-09-19 로컬 전환: 사용자 승인으로 기존 클라우드 전용 규칙 해제. UI/DB 로컬 구현과 새 세션 독립 검토를 허용했다. 과거 클라우드·신규 세션 금지 관련 기록은 이 최신 결정으로 대체된다.
+- UI-001 제출: feat/ui-foundation 95221682e5c3dc00562f4de0a245dc5f581b6c52, 제품 검토 SHA 87d99e4ab6f87da70e9a551efb2f280dda3f8268 독립 승인. 총괄 unit110 재확인. ENV-APP-001 Dev Container 생성/실행 검증 미완료로 전체 통합 대기. 정상 파일 승인 경로 조사와 해당 환경 항목만 후속 배정.
