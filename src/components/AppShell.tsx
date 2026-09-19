@@ -30,7 +30,7 @@ function NavLink({ href, children, ...rest }: ComponentProps<typeof Link> & { hr
 }
 
 type NavItem = {
-  /** basePath를 붙이기 전의 경로. */
+  /** 메뉴가 가리키는 경로. */
   path: string;
   label: string;
   icon: ReactNode;
@@ -106,33 +106,28 @@ export type AppShellProps = {
   spaceName: string;
   themeKey: ThemeKey;
   accentColor: string;
-  /**
-   * 메뉴 링크 앞에 붙는 경로. 실제 화면은 '', 데모 화면은 '/demo'다.
-   * 같은 껍데기를 쓰되 두 모드의 URL이 섞이지 않게 한다.
-   */
-  basePath?: string;
   /** 데모 고지처럼 헤더 위에 붙는 띠. 실제 화면에서는 비운다. */
   banner?: ReactNode;
   /** 헤더 오른쪽에 추가로 넣을 요소(예: 로그아웃). */
   headerActions?: ReactNode;
 };
 
+/**
+ * 데모와 실제 화면이 같은 껍데기를 쓴다. 두 모드는 URL이 아니라 **모드 자체로** 나뉘므로
+ * (`src/features/auth/mode.ts`) 메뉴 경로는 양쪽이 동일하다.
+ */
 export function AppShell({
   children,
   spaceName,
   themeKey,
   accentColor,
-  basePath = '',
   banner = null,
   headerActions = null,
 }: AppShellProps) {
   const pathname = usePathname();
-  const homeHref = basePath === '' ? '/' : basePath;
-  const settingsHref = `${basePath}/settings`;
-  const navItems = NAV_ITEMS.map((item) => ({
-    ...item,
-    href: item.path === '/' ? homeHref : `${basePath}${item.path}`,
-  }));
+  const homeHref = '/';
+  const settingsHref = '/settings';
+  const navItems = NAV_ITEMS.map((item) => ({ ...item, href: item.path }));
 
   return (
     // 확인 대화상자가 열리면 이 영역 전체를 inert로 비활성화한다.

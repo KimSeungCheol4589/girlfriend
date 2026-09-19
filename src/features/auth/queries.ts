@@ -3,6 +3,9 @@ import { cache } from 'react';
 import { isSupabaseConfigError } from '@/lib/supabase/config';
 import { createSupabaseServerClient, getVerifiedUser } from '@/lib/supabase/server';
 
+import { messageForCode } from './errors';
+import { toInviteListResult, type InviteListResult } from './invite-list';
+
 import type { SupabaseConfigProblem } from '@/lib/supabase/config';
 
 /**
@@ -164,44 +167,22 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
   };
 });
 
-export type InviteSummary = {
-  inviteId: string;
-  targetEmailMasked: string;
-  status: 'active' | 'accepted' | 'revoked' | 'expired';
-  expiresAt: string;
-  createdAt: string;
-  acceptedAt: string | null;
-};
-
 /**
  * 초대 상태 목록.
  * `space_invites`에는 SELECT 권한이 없으므로 전용 함수로만 읽는다(CONTRACTS.md 1).
  * 토큰 원문·해시·전체 이메일은 반환되지 않는다.
+ *
+ * 조회 실패를 빈 목록으로 바꾸지 않는다. 화면이 실패를 그대로 알린다.
  */
-export async function listSpaceInvites(): Promise<InviteSummary[]> {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc('list_space_invites');
-  if (error || !data) return [];
-
-  const rows = data as {
-    invite_id: string;
-    target_email_masked: string;
-    status: string;
-    expires_at: string;
-    created_at: string;
-    accepted_at: string | null;
-  }[];
-
-  return rows.map((row) => ({
-    inviteId: row.invite_id,
-    targetEmailMasked: row.target_email_masked,
-    status: (['active', 'accepted', 'revoked', 'expired'] as const).includes(
-      row.status as InviteSummary['status'],
-    )
-      ? (row.status as InviteSummary['status'])
-      : 'expired',
-    expiresAt: row.expires_at,
-    createdAt: row.created_at,
-    acceptedAt: row.accepted_at,
-  }));
+export async function listSpaceInvites(): Promise<InviteListResult> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc('list_space_invites');
+    return toInviteListResult({ data, error });
+  } catch (error) {
+    if (isSupabaseConfigError(error)) {
+      return { ok: false, message: messageForCode('CONFIG_ERROR') };
+    }
+    throw error;
+  }
 }

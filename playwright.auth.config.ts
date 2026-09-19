@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { buildWebServerEnv } from './tests/auth/web-server-env';
+
 /**
  * 실패 산출물의 페이지 스냅샷 처리 — 설치된 1.63.0에서 **직접 실험해 확인한 사실**:
  *
@@ -26,13 +28,6 @@ import { defineConfig, devices } from '@playwright/test';
 const PORT = Number(process.env.AUTH_E2E_PORT ?? 3002);
 const HOST = '127.0.0.1';
 const baseURL = process.env.AUTH_E2E_BASE_URL ?? `http://${HOST}:${PORT}`;
-
-/** 현재 프로세스 환경을 그대로 물려주되 아래에서 인증 관련 값만 덮어쓴다. */
-const inheritedEnv: Record<string, string> = Object.fromEntries(
-  Object.entries(process.env).filter(
-    (entry): entry is [string, string] => typeof entry[1] === 'string',
-  ),
-);
 
 const supabaseUrl =
   process.env.AUTH_TEST_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
@@ -81,12 +76,14 @@ export default defineConfig({
     // 다른 환경 변수로 떠 있는 서버를 재사용하면 검증 의미가 사라진다.
     reuseExistingServer: false,
     timeout: 180_000,
-    env: {
-      ...inheritedEnv,
+    // 현재 프로세스 환경을 물려주되 **관리자 키(service_role)는 빈 값으로 덮어쓴다.**
+    // Playwright의 env는 프로세스 환경 위에 덧씌워지므로 빼먹는 것만으로는 상속을 막지 못한다.
+    // 러너(픽스처·스펙)는 자기 환경에서 키를 계속 읽는다.
+    env: buildWebServerEnv(process.env, {
       NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabaseKey,
       NEXT_PUBLIC_DEMO_MODE: 'false',
       NEXT_PUBLIC_SITE_URL: baseURL,
-    },
+    }),
   },
 });

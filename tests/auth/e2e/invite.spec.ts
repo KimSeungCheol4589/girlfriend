@@ -6,7 +6,9 @@ import {
   expireInvitesFor,
   loadAccounts,
   login,
+  openSettings,
   pathnameOf,
+  submitInviteForm,
   toRelative,
   waitForScreen,
   type Account,
@@ -53,6 +55,28 @@ async function openInviteAndAccept(page: Page, link: string): Promise<void> {
 
   if (await accept.isVisible()) await accept.click();
 }
+
+test('같은 주소로 초대를 다시 만들 수 있다 (화면을 다시 불러오지 않고)', async ({ browser }) => {
+  const ownerContext = await browser.newContext();
+  const owner = await ownerPage(ownerContext);
+
+  const first = await createInviteLink(owner, accounts.b.email);
+
+  // 같은 화면에서 같은 주소로 한 번 더. 이전에는 멱등 재생 때문에 여기서 막혔다.
+  const second = await submitInviteForm(owner, accounts.b.email);
+  expect(second !== first, '같은 주소로 새 초대가 만들어져야 한다').toBe(true);
+  await expect(owner.getByText(/이미 처리됐습니다/)).toHaveCount(0);
+
+  // 폐기 → 다시 만들기도 화면을 다시 불러오지 않고 된다.
+  // (폐기 성공 문구는 목록이 갱신되며 사라질 수 있으므로 서버가 그린 상태를 확인한다.)
+  await owner.getByRole('button', { name: '폐기하기' }).first().click();
+  await expect(owner.getByText('폐기됨').first()).toBeVisible();
+
+  const third = await submitInviteForm(owner, accounts.b.email);
+  expect(third !== second, '폐기 후에도 새 초대가 만들어져야 한다').toBe(true);
+
+  await ownerContext.close();
+});
 
 test('만료된 초대는 새 링크를 요청하라고 안내한다', async ({ browser }) => {
   const ownerContext = await browser.newContext();
@@ -118,8 +142,7 @@ test('대상 계정이 초대를 수락하면 두 사람이 같은 공간을 쓴
   expect(hasStoredToken).toBe(false);
 
   // 초대한 사람 화면에도 수락 상태가 보인다.
-  await owner.goto('/settings');
-  await waitForScreen(owner, ['settings']);
+  await openSettings(owner);
   await expect(owner.getByText('수락됨')).toBeVisible();
 
   // 같은 사용자가 같은 링크를 다시 열면 계약대로 멱등 성공이고(CONTRACTS.md 1) 구성원이 늘지 않는다.
@@ -143,8 +166,7 @@ test('대상 계정이 초대를 수락하면 두 사람이 같은 공간을 쓴
 test('정원이 차면 새 초대를 만들 수 없다', async ({ browser }) => {
   const ownerContext = await browser.newContext();
   const owner = await ownerPage(ownerContext);
-  await owner.goto('/settings');
-  await waitForScreen(owner, ['settings']);
+  await openSettings(owner);
 
   await expect(owner.getByText('이미 두 사람이 참여해 정원이 찼습니다')).toBeVisible();
   await expect(owner.getByRole('button', { name: '초대 링크 만들기' })).toHaveCount(0);
@@ -170,14 +192,12 @@ test('설정은 본인 프로필만 바꾸고 상대방 닉네임은 그대로�
   const owner = await ownerPage(ownerContext);
   const guest = await signedInPage(guestContext, accounts.b);
 
-  await owner.goto('/settings');
-  await waitForScreen(owner, ['settings']);
+  await openSettings(owner);
   await owner.getByLabel('닉네임').fill('민서');
   await owner.getByRole('button', { name: '닉네임 저장' }).click();
   await expect(owner.getByText('닉네임을 저장했습니다.')).toBeVisible();
 
-  await guest.goto('/settings');
-  await waitForScreen(guest, ['settings']);
+  await openSettings(guest);
   await expect(guest.getByLabel('닉네임')).not.toHaveValue('민서');
   // 상대방 닉네임은 구성원 목록에서 볼 수 있다.
   await expect(guest.getByText('민서').first()).toBeVisible();

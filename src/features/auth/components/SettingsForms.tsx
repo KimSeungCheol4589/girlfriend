@@ -15,7 +15,7 @@ import { idleFormState } from '../form-state';
 import { NICKNAME_LIMITS } from '../schemas';
 
 import { FieldError, FormFeedback, SubmitButton } from './FormFeedback';
-import { useStableRequestId } from './use-stable-request-id';
+import { useSettledRequestId, useStableRequestId } from './use-stable-request-id';
 
 /** 내 닉네임. 본인만 바꿀 수 있다(CONTRACTS.md 5). */
 export function ProfileForm({
@@ -178,7 +178,9 @@ export function SpaceForm({
 export function InviteCreateForm({ canInvite }: { canInvite: boolean }) {
   const [state, formAction] = useActionState(createInviteAction, idleFormState);
   const [targetEmail, setTargetEmail] = useState('');
-  const requestId = useStableRequestId({ targetEmail });
+  // 확정 응답을 받은 뒤에는 새 키를 쓴다. 같은 주소로 초대를 다시 만들 수 있어야 한다.
+  // (응답을 못 받은 재시도는 같은 키를 유지해 중복 생성을 막는다.)
+  const requestId = useSettledRequestId({ targetEmail }, state);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {

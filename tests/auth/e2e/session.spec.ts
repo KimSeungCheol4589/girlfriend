@@ -96,6 +96,40 @@ test('세션은 새로 고침과 새 탭에서도 유지되고, 로그아웃하�
   await expect(page).toHaveURL(/\/login\?next=%2Fsettings$/);
 });
 
+test('한 탭에서 로그아웃하면 다른 탭도 로그인 화면으로 바뀌고 보관한 초대 토큰이 사라진다', async ({
+  context,
+}) => {
+  const first = await context.newPage();
+  await login(first, accounts.a);
+  await ensureSpace(first);
+
+  // 두 번째 탭에서 개인 화면을 열어 둔다.
+  const second = await context.newPage();
+  await second.goto('/settings');
+  await waitForScreen(second, ['settings']);
+
+  // 이 탭에 초대 토큰이 보관된 상황을 만든다(형식만 맞춘 가짜 값).
+  await second.evaluate(() => {
+    window.sessionStorage.setItem(
+      'gf.invite.token',
+      JSON.stringify({ token: 'e'.repeat(43), storedAt: Date.now() }),
+    );
+  });
+
+  await logout(first);
+
+  // 다른 탭은 알림을 받아 서버 렌더를 다시 받고, 세션이 없으므로 로그인 화면으로 간다.
+  await waitForScreen(second, ['login']);
+
+  const hasStoredToken = await second.evaluate(
+    () => window.sessionStorage.getItem('gf.invite.token') !== null,
+  );
+  expect(hasStoredToken, '다른 탭의 보관 토큰도 지워져야 한다').toBe(false);
+
+  await second.close();
+  await first.close();
+});
+
 test('허용 목록에 없는 계정은 공간을 만들 수 없다', async ({ page }) => {
   await login(page, accounts.c);
   await waitForScreen(page, ['onboarding']);

@@ -1,6 +1,8 @@
+import { ErrorNotice } from '@/components/ErrorNotice';
 import { DISPLAY_TIME_ZONE } from '@/lib/contracts';
 
-import { listSpaceInvites, type InviteSummary } from '../queries';
+import { type InviteSummary } from '../invite-list';
+import { listSpaceInvites } from '../queries';
 
 import { SignOutButton } from './LiveAppShell';
 import { InviteCreateForm, ProfileForm, RevokeInviteForm, SpaceForm } from './SettingsForms';
@@ -32,8 +34,9 @@ function formatDateTime(value: string): string {
  */
 export async function SettingsPanel({ context }: { context: MemberContext }) {
   const { space, members, profile, user } = context;
-  const invites = await listSpaceInvites();
+  const inviteList = await listSpaceInvites();
   const canInvite = members.length < 2;
+  const invites = inviteList.ok ? inviteList.invites : [];
   const activeInvites = invites.filter((invite) => invite.status === 'active');
 
   return (
@@ -95,7 +98,16 @@ export async function SettingsPanel({ context }: { context: MemberContext }) {
         </div>
 
         <h3 className="mt-6 text-xs font-bold text-text">보낸 초대</h3>
-        {invites.length === 0 ? (
+        {!inviteList.ok ? (
+          // 실패를 "초대 없음"으로 보여 주지 않는다. 활성 초대를 못 본 채 새로 만들면
+          // 이전 초대가 조용히 폐기된다.
+          <div className="mt-2">
+            <ErrorNotice
+              title="보낸 초대를 불러오지 못했어요"
+              description={`${inviteList.message} 목록을 확인하기 전에는 새 초대를 만들지 않는 편이 안전합니다. 새 초대를 만들면 이전 초대가 폐기되기 때문입니다.`}
+            />
+          </div>
+        ) : invites.length === 0 ? (
           <p className="mt-2 text-xs text-muted">아직 만든 초대가 없습니다.</p>
         ) : (
           <ul className="mt-2 divide-y divide-border">

@@ -132,21 +132,43 @@ export async function ensureSpace(page: Page, name = '둘이 쌓는 공간'): Pr
   await waitForScreen(page, ['home']);
 }
 
-/** 설정 화면에서 초대 링크를 만들고 값을 돌려준다. 링크는 화면에만 나오고 로그에 남기지 않는다. */
-export async function createInviteLink(page: Page, targetEmail: string): Promise<string> {
+export async function openSettings(page: Page): Promise<void> {
   await page.goto('/settings');
   await waitForScreen(page, ['settings']);
+}
+
+/**
+ * 이미 열려 있는 설정 화면에서 초대 폼을 제출하고 새 링크를 돌려준다.
+ * 화면을 다시 불러오지 않으므로 "같은 화면에서 다시 만들기"를 확인할 수 있다.
+ * 링크 값은 단언·로그에 쓰지 않는다(비교는 boolean으로).
+ */
+export async function submitInviteForm(page: Page, targetEmail: string): Promise<string> {
+  const linkInput = page.getByLabel('초대 링크');
+  const previous = (await linkInput.count()) > 0 ? await linkInput.inputValue() : null;
 
   await page.getByLabel('상대방 이메일').fill(targetEmail);
   await page.getByRole('button', { name: '초대 링크 만들기' }).click();
 
-  const linkInput = page.getByLabel('초대 링크');
   await expect(linkInput).toBeVisible();
-  const link = await linkInput.inputValue();
+  // 이전 링크가 그대로 남아 있는 상태를 읽지 않도록 값이 바뀔 때까지 기다린다.
+  if (previous !== null) {
+    await expect
+      .poll(async () => (await linkInput.inputValue()) !== previous, {
+        message: '새 초대 링크가 만들어지지 않았습니다',
+      })
+      .toBe(true);
+  }
 
+  const link = await linkInput.inputValue();
   // 토큰이 실패 메시지로 새지 않도록 링크 원문 대신 boolean만 단언한다.
   expect(link.includes('/invite#token='), '초대 링크 형식이 올바르지 않습니다').toBe(true);
   return link;
+}
+
+/** 설정 화면을 열고 초대 링크를 만든다. */
+export async function createInviteLink(page: Page, targetEmail: string): Promise<string> {
+  await openSettings(page);
+  return submitInviteForm(page, targetEmail);
 }
 
 /** 절대 주소에서 경로+fragment만 떼어 낸다(테스트 서버 주소가 달라도 동작하도록). */

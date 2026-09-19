@@ -5,6 +5,7 @@ import { ErrorNotice } from '@/components/ErrorNotice';
 import { AuthPageShell, DemoModeAuthNotice } from '@/features/auth/components/AuthPageShell';
 import { LoginForm } from '@/features/auth/components/LoginForm';
 import { SetupRequired } from '@/features/auth/components/SetupRequired';
+import { SignedOutBroadcaster } from '@/features/auth/components/SignedOutBroadcaster';
 import { getAppMode } from '@/features/auth/mode';
 import { authErrorMessage, firstParam } from '@/features/auth/notices';
 import { getSessionContext } from '@/features/auth/queries';
@@ -33,6 +34,7 @@ export default async function LoginPage({
   if (context.status === 'no_space') redirect('/onboarding');
 
   const linkError = authErrorMessage(firstParam(params.authError));
+  const signedOut = firstParam(params.signedOut) === '1';
 
   return (
     <AuthPageShell
@@ -46,7 +48,10 @@ export default async function LoginPage({
         </div>
       ) : null}
 
-      <LoginForm next={next} signedOut={firstParam(params.signedOut) === '1'} />
+      {/* 로그아웃이 끝난 뒤에만 이 탭 정리와 다른 탭 알림을 수행한다. */}
+      {signedOut ? <SignedOutBroadcaster /> : null}
+
+      <LoginForm next={next} signedOut={signedOut} />
     </AuthPageShell>
   );
 }

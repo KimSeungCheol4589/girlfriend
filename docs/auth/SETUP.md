@@ -43,11 +43,28 @@ pnpm run test:e2e
 | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | 예 | Supabase API 주소 |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 예 | 공개용 키. 구버전 `NEXT_PUBLIC_SUPABASE_ANON_KEY`도 읽는다 |
-| `NEXT_PUBLIC_SITE_URL` | 아니오 | 인증 메일 링크가 돌아올 앱 주소. 없으면 요청 출처를 쓴다 |
+| `NEXT_PUBLIC_SITE_URL` | **운영 필수** | 인증 메일 링크가 돌아올 앱의 **정규 출처**. 운영에서는 `https://` 주소를 반드시 지정한다 |
 | `NEXT_PUBLIC_DEMO_MODE` | 아니오 | `true`일 때만 데모 모드. 그 밖의 값·미설정은 데모를 켜지 않는다 |
 
 관리자 키(`service_role`)는 **앱의 어떤 경로에도 쓰지 않는다.** 일반 요청은 사용자 세션과 RLS만 쓴다.
 관리자 키가 필요한 작업은 운영자의 수동 절차(아래)와 로컬 테스트 픽스처뿐이다.
+
+> **관리자 키를 앱의 `.env.local`에 넣지 않는다.** 앱 서버 프로세스가 그 값을 상속할 이유가 없다.
+> 로컬 테스트 픽스처에 필요할 때만 **그 명령의 환경으로** 넘긴다(`tests/auth/README.md` 참고).
+> 인증 E2E 설정은 앱 서버로 넘기는 환경에서 이 키를 빈 값으로 덮어써 상속을 막는다
+> (`tests/auth/web-server-env.ts`).
+
+### 2.1 `NEXT_PUBLIC_SITE_URL`과 Redirect 허용 목록
+
+- 운영에서는 **정규 출처 하나**를 `https://`로 지정한다(예: `https://app.example`).
+  값이 없으면 앱은 요청 헤더(`origin`/`x-forwarded-host`/`host`)로 대체하는데,
+  허용 목록이 느슨한 배포에서는 Host 스푸핑으로 복구 메일의 링크 출처가 바뀔 수 있다.
+- 값에 마지막 `/`나 경로를 넣지 않는다. 서브도메인·http 주소를 섞어 쓰지 않는다.
+- Supabase의 Redirect 허용 목록에는 **정확한 경로 두 개만** 넣는다.
+  `https://<정규 출처>/auth/callback`, `https://<정규 출처>/auth/confirm`
+- `https://*.example.com/**` 같은 넓은 와일드카드를 넣지 않는다. 허용 목록이 느슨하면
+  인증 코드·복구 링크가 의도하지 않은 출처로 전달될 수 있다.
+- 로컬 개발은 그대로 둔다. 값이 없으면 요청 출처를 쓰므로 `127.0.0.1` 포트 조합이 계속 동작한다.
 
 ## 3. Supabase 프로젝트에서 사람이 해야 하는 설정
 
@@ -56,14 +73,23 @@ pnpm run test:e2e
 1. **공개 가입 차단.** Authentication → Providers → Email에서 신규 가입을 끈다.
    이 서비스는 두 사람만 쓰는 비공개 공간이라 공개 가입을 받지 않는다(DESIGN.md 1).
    앱에도 회원가입 화면이 없다. 가입이 켜져 있으면 Auth API로 직접 가입할 수 있으므로 반드시 끈다.
-2. **Site URL과 Redirect 허용 목록.** Site URL에 앱 주소를, Redirect URLs에
-   `<앱 주소>/auth/callback`과 `<앱 주소>/auth/confirm`을 넣는다.
-   앱은 돌아갈 내부 경로를 허용 목록으로 다시 제한하므로(`src/features/auth/redirects.ts`)
-   외부 주소로는 보내지 않는다.
+2. **Site URL과 Redirect 허용 목록.** Site URL에 앱의 정규 `https://` 출처를 넣고,
+   Redirect URLs에는 **정확한 경로 두 개만** 넣는다:
+   `https://<정규 출처>/auth/callback`, `https://<정규 출처>/auth/confirm`.
+   `https://*.example.com/**` 같은 넓은 와일드카드를 쓰지 않는다(2.1절 참고).
+   앱도 돌아갈 내부 경로를 허용 목록으로 다시 제한하지만(`src/features/auth/redirects.ts`),
+   **어느 출처로 메일 링크를 보낼지**는 공급자 설정이 결정한다.
 3. **이메일 템플릿.** 기본 템플릿(`{{ .ConfirmationURL }}`)이면 `/auth/callback`으로 돌아온다.
    `{{ .TokenHash }}`를 쓰는 템플릿이면 `/auth/confirm?token_hash=...&type=...`으로 돌아온다.
    두 경로 모두 구현돼 있다.
-4. **SMTP.** 비밀번호 재설정 메일이 실제로 전달되려면 SMTP를 설정해야 한다.
+4. **비밀번호 변경 재인증(Secure password change).** Supabase의 이 설정은 **기본이 꺼져 있다.**
+   꺼져 있으면 로그인한 세션이 기존 비밀번호 없이 비밀번호를 바꿀 수 있다.
+   앱의 `/reset-password`도 세션이 있으면 새 비밀번호 폼을 보여 주므로,
+   공용 기기에서 화면을 열어 둔 상태가 그대로 계정 탈취로 이어질 수 있다.
+   운영에서는 Authentication → Providers → Email의 **재인증 요구를 켜는 것을 권장**한다.
+   **이 설정의 실제 동작은 이번 작업에서 확인하지 않았다.** 켠 뒤에는 앱의 재설정 화면이
+   재인증 요구(예: `reauthentication_needed`)를 어떻게 안내할지 다시 확인해야 한다(QA-001).
+5. **SMTP.** 비밀번호 재설정 메일이 실제로 전달되려면 SMTP를 설정해야 한다.
    **이번 작업에서 검증하지 않았다.** 로컬에서는 테스트 메일 서비스(Mailpit)로만 확인한다.
 
 ## 4. 첫 계정과 공간 준비 (운영자 수동 절차)
@@ -171,6 +197,9 @@ pnpm run test:e2e
   앱은 3002에서 돌기 때문이다. 이 설정은 이 작업에서 바꾸지 않았다.
 - **운영 프로젝트의 공개 가입 차단.** 로컬 인스턴스는 `DISABLE_SIGNUP=false`다. 앱에 가입 화면이
   없더라도 Auth API로 직접 가입할 수 있으므로 **운영에서는 반드시 가입을 꺼야 한다**(3절 1번).
+- **비밀번호 변경 재인증 설정의 실제 동작.** 3절 4번의 권장 설정을 켰을 때 앱 화면이 어떻게
+  동작하는지 확인하지 않았다. 현재 코드는 로그인 세션이면 새 비밀번호 폼을 보여 준다.
+- **Redirect 허용 목록·정규 출처의 운영 적용.** 2.1절 권장 사항은 문서일 뿐 적용·검증하지 않았다.
 - **서버 벽시계 기준 토큰 만료.** 갱신 경로는 실제로 실행해 검증하지만(저장된 만료 시각을 과거로
   바꾸고 유효한 refresh token으로 갱신), `JWT_EXP=3600`을 줄여 실제 시간이 지난 뒤의 만료는
   확인하지 않았다. 컨테이너·Auth 설정을 바꾸지 않기 위해서다.
