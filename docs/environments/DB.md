@@ -71,3 +71,7 @@ $taskSupabase = Join-Path (Get-Location) '.agent-runtime/db-tools/node_modules/.
 ENV-DB-001의 조사·격리 도구 준비·문서는 완료했다. **문서 검토는 가능하나 DB 환경 준비 완료 또는 DB-001 제품 통합 가능 상태는 아니다.** Claude 구현·코드 검토는 이번 환경 작업 범위에 포함되지 않았고 실행하지 않았다. 제품 검토 대상 SHA도 없다.
 
 참고: [Supabase CLI 설치·실행](https://supabase.com/docs/guides/local-development/cli/getting-started), [CLI 상태 경로·SUPABASE_HOME](https://github.com/supabase/cli/blob/develop/apps/cli/docs/supabase-home.md), [Docker Desktop Windows 요구사항](https://docs.docker.com/desktop/setup/install/windows-install/).
+
+### 후속 브랜치 정책
+
+총괄의 후속 지시에 따라 이후 개발 기준·통합 대상은 `origin/dev`, PR base는 `dev`다. 위 main 병합 기록은 정책 변경 전 수행 이력이다. 기능 브랜치 작업을 보존하고 main에 직접 push·merge하지 않는다. dev에서 main으로의 승격은 사용자 결정 후 총괄이 담당한다.
