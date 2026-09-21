@@ -1,6 +1,6 @@
 # 협업 작업 목록
 
-갱신일: 2026-09-19 · 관리 담당: 총괄, 통합
+갱신일: 2026-09-21 · 관리 담당: 총괄, 통합
 
 상태: planned → assigned → in_progress → ready → integrated. 수정 요청은 changes_requested, 외부 조건 대기는 blocked로 기록한다. assigned는 지시 전달 완료, ready는 커밋·보고서 제출 완료, integrated는 총괄 검증·dev 반영 완료다. main 승격은 사용자 결정 후 별도로 기록한다.
 
@@ -13,8 +13,9 @@
 | ENV-DB-001 | DB (Codex) | Docker 엔진·가상화 상태 확인, 로컬 테스트 DB 도구 준비·실제 서비스 및 SQL 접속 확인 | 없음 | integrated |
 | ENV-APP-001 | UI Codex → 로컬 Claude | Node 22·pnpm 고정·Next.js 골격·Dev Container 설정·설치/build 검증 | 저장소 일치 확인 | integrated |
 | UI-001 | UI Codex → 로컬 Claude | 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | ENV-APP-001 | integrated |
+| UI-DATE-001 | UI Codex → 로컬 Claude | 데모의 실제 관계 시작일 2025-01-27 반영, 한국 날짜 기준 일수 확인 | UI-001 | integrated |
 | DB-001 | DB | DESIGN 기반 SQL migration, RLS·권한·초대·버전 처리 기반과 DB 테스트, 통합용 계약 문서 | 없음 | integrated |
-| AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | blocked |
+| AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | ready |
 | MEM-001 | 홈, 추억, 꾸미기 | 추억 실제 CRUD·사진 업로드·필터 연결, 충돌·실패 처리 | AUTH-001 통합 | planned |
 | FOOD-001 | 총괄이 후속 배정 | 맛집 목록·방문 상태·개인 후기, 권한·상태 전이 검증 | AUTH-001 통합 | planned |
 | THEME-001 | 홈, 추억, 꾸미기 | 테마·커버·홈 구성의 실제 공유 저장과 미리보기 | MEM-001 통합 | planned |
@@ -45,6 +46,7 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 | DB-001 | 59fa491 (최종 제출 ff19d53) | 44f9285 | 독립 검토 승인, 총괄 단일 세션 7개/294 단언 재확인. 담당 동시성 5개 통과. 실제 파일 HTTP/앱 인증 연결은 후속 |
 
 | ENV-APP-001 / UI-001 | UI 87d99e4, 환경 d429216 (최종 4c21725) | f384db6 | 새 Claude 독립 승인, 호스트 unit110 총괄 재확인, 컨테이너 실행 증거·격리 inspect 확인. 필수 검증 통과 |
+| UI-DATE-001 | a198a5f (최종 제출 4124087) | 9bb9dd7, b1329d2 | 새 Claude 독립 승인, 한국 날짜 2026-09-21에 603일 확인, 날짜 단위 테스트 21개 통과 |
 
 ## 운영 상태
 
