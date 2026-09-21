@@ -9,7 +9,7 @@ export const DEMO_STATE: DemoState = {
   space: {
     name: '둘이 쌓는 공간',
     introduction: '사진 한 장과 짧은 문장으로 남기는 우리 기록.',
-    relationshipStartDate: '2024-11-09',
+    relationshipStartDate: '2025-01-27',
   },
   customization: {
     themeKey: 'cream',
