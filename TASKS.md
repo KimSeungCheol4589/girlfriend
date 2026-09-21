@@ -15,23 +15,23 @@
 | UI-001 | UI Codex → 로컬 Claude | 홈/추억/꾸미기 반응형 UI, 더미 데이터 경계, lint·타입·build | ENV-APP-001 | integrated |
 | UI-DATE-001 | UI Codex → 로컬 Claude | 데모의 실제 관계 시작일 2025-01-27 반영, 한국 날짜 기준 일수 확인 | UI-001 | integrated |
 | DB-001 | DB | DESIGN 기반 SQL migration, RLS·권한·초대·버전 처리 기반과 DB 테스트, 통합용 계약 문서 | 없음 | integrated |
-| AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | ready |
-| MEM-001 | 홈, 추억, 꾸미기 | 추억 실제 CRUD·사진 업로드·필터 연결, 충돌·실패 처리 | AUTH-001 통합 | planned |
-| FOOD-001 | 총괄이 후속 배정 | 맛집 목록·방문 상태·개인 후기, 권한·상태 전이 검증 | AUTH-001 통합 | planned |
+| AUTH-001 | DB | 로그인·인증 콜백·세션·공간 초대 연결, 환경 변수 예제·설정 안내, 실제/로컬 검증 | UI-001, DB-001 통합 | integrated |
+| MEM-001 | 홈, 추억, 꾸미기 | 추억 실제 CRUD·사진 업로드·필터 연결, 충돌·실패 처리 | AUTH-001 통합 | assigned |
+| FOOD-001 | DB 담당 → 로컬 Claude | 맛집 목록·방문 상태·개인 후기, 권한·상태 전이 검증 | AUTH-001 통합 | assigned |
 | THEME-001 | 홈, 추억, 꾸미기 | 테마·커버·홈 구성의 실제 공유 저장과 미리보기 | MEM-001 통합 | planned |
 | QA-001 | 총괄, 통합 | 전체 연결·모바일·외부 계정 접근 차단·업로드·백업 복원 확인 | 기능 구현 완료 | planned |
 
 UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, 실제 구현과 코드 검토는 Claude Code CLI로 수행한다. 후속 작업은 의존성이 충족된 뒤 실제 결과에 맞춰 범위를 구체화한다. 앱 설정·lockfile은 UI-001에서만 생성하고 DB-001은 수정하지 않는다.
 
-최신 배분: 사용자 승인으로 로컬 Claude 신규 세션에 전환했다. UI 담당이 feat/ui-foundation에서 ENV-APP-001 → UI-001의 앱 설정·lockfile·Dev Container·UI를 맡고 DB 담당이 feat/db-foundation에서 DB-001의 supabase/migrations·supabase/tests·DB 계약 문서를 맡는다. 두 담당은 제품 구현을 직접 대신하지 않고 Claude 구현·별도 독립 검토·검증을 관리한다. 기존 클라우드 feat/claude-foundation 배정은 철회했으며 늦게 도착한 변경은 자동 통합하지 않는다. 연결 확인 후 실제 구현을 시작한다.
+최신 배분(2026-09-21): AUTH-001 통합 후 UI 담당에게 MEM-001, DB 담당에게 FOOD-001을 각각 배정한다. 두 작업은 최신 dev에서 별도 Worktree·기능 브랜치를 만들고 로컬 Claude 구현과 새 세션의 읽기 전용 독립 검토를 관리한다. MEM 담당은 추억 화면·사진·홈의 추억 요약, FOOD 담당은 맛집 화면·후기·DB 계약을 소유한다. 공통 인증·앱 설정·홈의 맛집 요약은 사전 조율 없이 함께 수정하지 않는다.
 
 ## 역할별 작업 공간
 
 | 역할 | 브랜치 계획 | 위치 |
 | --- | --- | --- |
 | 총괄, 통합 | dev | 기존 통합 checkout, dev로 전환 완료 |
-| 홈, 추억, 꾸미기 | feat/ui-foundation | Codex 관리 Worktree 분리 완료 |
-| DB | feat/db-foundation | Codex 관리 Worktree 분리 완료 |
+| 홈, 추억, 꾸미기 | feat/ui-foundation 완료; MEM-001은 최신 dev에서 새 기능 브랜치 | Codex 담당이 새 Worktree 준비 |
+| DB | feat/db-foundation·codex/auth-foundation 완료; FOOD-001은 최신 dev에서 새 기능 브랜치 | Codex 담당이 새 Worktree 준비 |
 
 개인 컴퓨터의 작업 ID·Worktree 절대 경로·자동화 ID는 총괄 대화에 보관한다. 공개 저장소의 문서는 다른 환경에서도 사용할 수 있도록 역할·작업 ID·브랜치 기준으로 작성한다.
 
@@ -47,6 +47,7 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 
 | ENV-APP-001 / UI-001 | UI 87d99e4, 환경 d429216 (최종 4c21725) | f384db6 | 새 Claude 독립 승인, 호스트 unit110 총괄 재확인, 컨테이너 실행 증거·격리 inspect 확인. 필수 검증 통과 |
 | UI-DATE-001 | a198a5f (최종 제출 4124087) | 9bb9dd7, b1329d2 | 새 Claude 독립 승인, 한국 날짜 2026-09-21에 603일 확인, 날짜 단위 테스트 21개 통과 |
+| AUTH-001 | 8d6a97d (최종 제출 5516ffb) | 0a2e6c3, ee8a38d, a90d927, 060ed10 | Claude 전체 검토·수정분 재검토 승인. 최종 실제 인증 E2E 23개, 총괄 단위 219개·타입 검사·diff check 재확인 |
 
 ## 운영 상태
 
@@ -71,3 +72,10 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 
 DB 담당은 최신 dev에서 codex/auth-foundation 브랜치로 시작한다. 소유 범위를 인증용 src/lib/supabase, src/features/auth, 로그인·콜백·온보딩·초대·설정 화면, 세션 갱신 미들웨어, 인증 연결에 필요한 app layout/AppShell, .env.example, package.json/pnpm-lock.yaml, 인증 테스트·문서로 확장한다. UI 담당은 이 작업 동안 공통 앱 파일을 수정하지 않는다. 기존 데모 UI는 명시적 데모 진입으로 구분하고 환경 누락 시 실제 인증 성공으로 표시하지 않는다. 로컬 Supabase 합성 계정으로 로그인·로그아웃·세션·공간 생성·초대·외부 계정 차단을 검증하며 운영 계정/SMTP/배포 설정은 변경하지 않는다. DB SQL 계약 변경은 사유·영향과 회귀 검증을 보고한다. 구현·새 독립 검토를 Claude가 수행하며 다음 기능은 별도 배정한다.
 - 2026-09-20 AUTH-001: 제품 6c24736, 보고 e69b89e. 담당 보고상 unit200/demo E2E48/실제 인증 E2E21 통과. Claude session limit으로 독립 검토 미실행. 03:20 KST 이후 새 읽기전용 검토 재배정, 승인 전 통합 보류. 기존 보고·push 승인 문제는 총괄이 로컬 보고서를 읽어 인수했으며 사용자의 저장소 통합 승인 범위에서 후속 처리한다.
+- 2026-09-21 AUTH-001: 독립 전체 검토와 수정분 재검토 완료. 최종 제품 8d6a97d, 인수인계 5516ffb. 총괄이 단위 219개·타입 검사·diff check를 재확인하고 dev 060ed10까지 통합했다. 운영 SMTP·가입 차단·재인증 설정은 미검증이며 QA-001 범위로 남긴다.
+
+## MEM-001·FOOD-001 병렬 배분
+
+- MEM-001(UI 담당): 실제 인증 공간에서 추억 생성·목록/월·태그 필터·상세·수정·삭제, 사진 업로드/조회/정리, 버전 충돌·중복 제출·실패 표시를 구현한다. `src/app/memories/**`, `src/features/memories/**`, 추억 카드와 홈의 추억 요약을 소유한다. 기존 데모 화면은 유지하고 실제 저장 성공처럼 보이지 않게 분리한다. 로컬 합성 두 계정·외부 계정으로 RLS/Storage 접근과 새 로그인 후 지속성을 검증한다. 인증·맛집 경로와 공통 설정 수정은 총괄과 먼저 조율한다.
+- FOOD-001(DB 담당): 실제 인증 공간에서 맛집 등록·목록/검색/필터·방문 상태/날짜·사용자별 별점과 한 줄 후기·수정/삭제를 구현한다. `src/app/restaurants/**`, `src/features/restaurants/**`, 필요 시 `supabase/migrations/**`와 `supabase/tests/**`를 소유한다. 두 구성원의 공용 수정 권한과 개인 후기 본인 수정 권한, 입력 검증, 버전 충돌·중복 제출·실패 표시를 확인한다. 홈·추억·인증·공통 설정 수정은 총괄과 먼저 조율한다.
+- 양쪽 모두 최신 dev에서 별도 Worktree·기능 브랜치를 시작하고 Claude 구현·별도 새 읽기 전용 검토 후 커밋 SHA·검증·잔여 문제를 `docs/handoffs/<작업ID>.md`로 보고한다. 담당자는 dev/main을 직접 수정하지 않는다.
