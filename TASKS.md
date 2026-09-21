@@ -76,6 +76,6 @@ DB 담당은 최신 dev에서 codex/auth-foundation 브랜치로 시작한다. �
 
 ## MEM-001·FOOD-001 병렬 배분
 
-- MEM-001(UI 담당): 실제 인증 공간에서 추억 생성·목록/월·태그 필터·상세·수정·삭제, 사진 업로드/조회/정리, 버전 충돌·중복 제출·실패 표시를 구현한다. `src/app/memories/**`, `src/features/memories/**`, 추억 카드와 홈의 추억 요약을 소유한다. 기존 데모 화면은 유지하고 실제 저장 성공처럼 보이지 않게 분리한다. 로컬 합성 두 계정·외부 계정으로 RLS/Storage 접근과 새 로그인 후 지속성을 검증한다. 인증·맛집 경로와 공통 설정 수정은 총괄과 먼저 조율한다.
+- MEM-001(UI 담당): 실제 인증 공간에서 추억 생성·목록/월·태그 필터·상세·수정·삭제, 사진 업로드/조회/정리, 버전 충돌·중복 제출·실패 표시를 구현한다. `src/app/memories/**`, `src/features/memories/**`, 추억 카드와 홈의 추억 요약을 소유한다. 홈 연결은 `src/app/page.tsx`의 추억 child 전달과 `src/features/auth/components/LiveHome.tsx`의 추억 slot만 최소 변경할 수 있다. `tests/memories/**`, `tests/unit/memories-*`, `playwright.memories.config.ts`도 담당 소유다. 기존 데모 화면은 유지하고 실제 저장 성공처럼 보이지 않게 분리한다. 로컬 합성 두 계정·외부 계정으로 RLS/Storage 접근과 새 로그인 후 지속성을 검증하되 전용 합성 계정·namespace·포트 3003으로 FOOD 테스트와 충돌을 피한다. 맛집 요약·인증 판단·공통 설정·의존성 변경은 총괄과 먼저 조율한다.
 - FOOD-001(DB 담당): 실제 인증 공간에서 맛집 등록·목록/검색/필터·방문 상태/날짜·사용자별 별점과 한 줄 후기·수정/삭제를 구현한다. `src/app/restaurants/**`, `src/features/restaurants/**`, 필요 시 `supabase/migrations/**`와 `supabase/tests/**`를 소유한다. 두 구성원의 공용 수정 권한과 개인 후기 본인 수정 권한, 입력 검증, 버전 충돌·중복 제출·실패 표시를 확인한다. 홈·추억·인증·공통 설정 수정은 총괄과 먼저 조율한다.
 - 양쪽 모두 최신 dev에서 별도 Worktree·기능 브랜치를 시작하고 Claude 구현·별도 새 읽기 전용 검토 후 커밋 SHA·검증·잔여 문제를 `docs/handoffs/<작업ID>.md`로 보고한다. 담당자는 dev/main을 직접 수정하지 않는다.
