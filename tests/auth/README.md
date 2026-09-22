@@ -135,7 +135,7 @@ pnpm run test:e2e:auth -- recovery.spec.ts
 - 비로그인 상태로 `/`, `/settings`, `/memories`에 직접 들어가면 로그인 화면으로 이동
 - 개인 화면 응답에 `Cache-Control: no-store`
 - A 로그인 → 공간 생성 → 홈 표시
-- 실제 모드의 `/memories`는 데모가 아니라 준비 중 안내(데모 문구가 전혀 없음)
+- 실제 모드의 `/memories`는 데모가 아니라 실제 추억 목록(MEM-001, 데모 문구가 전혀 없음)
 - `?next=https://evil.example`로 외부 주소에 나갈 수 없음
 - 세션이 새로 고침·같은 컨텍스트의 새 탭에서 유지되고, 로그아웃하면 **세션 쿠키가 남지 않으며**
   보호된 주소가 열리지 않음

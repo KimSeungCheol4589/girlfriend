@@ -46,14 +46,17 @@ test('A는 로그인 후 공간이 없으면 만들고 홈을 본다', async ({ 
   await expect(page.getByRole('heading', { name: '우리 공간 구성원' })).toBeVisible();
 });
 
-test('실제 모드에서는 데모 화면 대신 준비 중 안내를 보여 준다', async ({ page }) => {
+test('실제 모드의 추억 화면은 데모가 아니라 실제 추억 목록을 보여 준다', async ({ page }) => {
   await login(page, accounts.a);
   await ensureSpace(page);
 
   await page.goto('/memories');
   await waitForScreen(page, ['pending']);
 
-  await expect(page.getByText('준비 중')).toBeVisible();
+  // MEM-001 이후 실제 목록 화면(필터·새 기록 진입)이다. 준비 중 안내가 아니다.
+  await expect(page.getByRole('heading', { name: '월·태그로 추리기' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '새 추억 쓰기' }).first()).toBeVisible();
+  await expect(page.getByText('준비 중')).toHaveCount(0);
   // 데모 예시 데이터·데모 고지가 실제 화면에 섞이면 안 된다.
   await expect(page.getByText('데모 모드')).toHaveCount(0);
   await expect(page.getByText('브라우저 메모리에만')).toHaveCount(0);

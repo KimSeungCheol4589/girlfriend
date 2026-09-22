@@ -2,13 +2,27 @@ import Link from 'next/link';
 
 import { Photo } from '@/components/Photo';
 import { formatKoreanDate } from '@/lib/dates';
-import type { DemoMemory } from '@/lib/demo/types';
+
+/**
+ * 카드가 필요로 하는 값만 담은 모양. 데모 기록과 실제 기록이 각각 이 모양으로 넘긴다.
+ * 실제 기록의 사진 `src`는 인증된 사진 경로다(서명·공개 URL이 아니다).
+ */
+export type MemoryCardData = {
+  id: string;
+  title: string;
+  body: string;
+  memoryDate: string;
+  location: string | null;
+  tags: readonly string[];
+  isPinned: boolean;
+  photos: readonly { id: string; src: string; alt: string }[];
+};
 
 /**
  * 목록용 추억 카드.
  * DESIGN.md 4.1: 사진 첫 장을 대표 이미지로 쓰고, 사진이 없으면 날짜·제목 카드로 대신한다.
  */
-export function MemoryCard({ memory, priority = false }: { memory: DemoMemory; priority?: boolean }) {
+export function MemoryCard({ memory, priority = false }: { memory: MemoryCardData; priority?: boolean }) {
   const cover = memory.photos[0];
 
   return (

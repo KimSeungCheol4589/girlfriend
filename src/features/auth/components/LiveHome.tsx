@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 
 import { daysTogether, formatKoreanDate } from '@/lib/dates';
 
@@ -9,8 +10,16 @@ import type { MemberContext } from '../guards';
  *
  * 이번 작업(AUTH-001)의 범위는 로그인·공간·초대까지다. 추억·맛집·꾸미기의 실제 저장은
  * 아직 없으므로 **예시 데이터를 대신 보여 주지 않고** 준비 중임을 분명히 적는다.
+ *
+ * `memorySummary`: 추억 요약 자리(MEM-001). 주어지면 추억은 준비 중 목록에서 뺀다.
  */
-export function LiveHome({ context }: { context: MemberContext }) {
+export function LiveHome({
+  context,
+  memorySummary,
+}: {
+  context: MemberContext;
+  memorySummary?: ReactNode;
+}) {
   const { space, members, profile } = context;
   const dayCount = daysTogether(space.relationshipStartDate);
 
@@ -73,17 +82,26 @@ export function LiveHome({ context }: { context: MemberContext }) {
         </div>
       </section>
 
+      {memorySummary ?? null}
+
       <section className="app-card px-5 py-5 sm:px-6">
         <span className="chip bg-accent-soft text-text">준비 중</span>
         <h2 className="mt-3 text-sm font-bold text-text">아직 만들지 않은 기능</h2>
-        <p className="mt-2 text-sm leading-relaxed text-muted">
-          로그인과 공간·초대까지 연결했습니다. 추억 기록, 사진 업로드, 맛집, 꾸미기의 실제 저장은
-          다음 작업에서 붙입니다. 지금은 저장할 수 있는 화면이 없으므로 예시 데이터를 실제 기록처럼
-          보여 주지 않습니다.
-        </p>
+        {memorySummary ? (
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            추억은 실제로 저장됩니다. 맛집과 꾸미기의 실제 저장은 다음 작업에서 붙이며, 그 전까지 예시
+            데이터를 실제 기록처럼 보여 주지 않습니다.
+          </p>
+        ) : (
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            로그인과 공간·초대까지 연결했습니다. 추억 기록, 사진 업로드, 맛집, 꾸미기의 실제 저장은
+            다음 작업에서 붙입니다. 지금은 저장할 수 있는 화면이 없으므로 예시 데이터를 실제 기록처럼
+            보여 주지 않습니다.
+          </p>
+        )}
         <ul className="mt-3 space-y-1.5">
           {[
-            '추억 작성·목록·상세 (MEM-001)',
+            ...(memorySummary ? [] : ['추억 작성·목록·상세 (MEM-001)']),
             '맛집 목록과 두 사람의 후기 (FOOD-001)',
             '테마·커버·홈 구성 저장 (THEME-001)',
           ].map((item) => (
