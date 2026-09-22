@@ -75,8 +75,13 @@ select gen_random_uuid(), 'space-assets', a.object_path, a.uploader_id
   from public.assets a
  where a.id in (:'apending', :'aunattached', :'aattached', :'acover', :'adeleting');
 
+-- 모든 storage.objects 조회·변경·판정은 이 파일의 픽스처 공간 경로(:s1/…, :s2/…)로만 한정한다.
+-- 같은 로컬 DB의 space-assets 버킷에는 다른 작업(MEM·E2E)의 합성 객체가 있을 수 있다.
+-- 객체 경로는 생성 열 `space_id/asset_id.ext`이므로 공간 ID 접두사로 픽스처 객체만 고를 수 있다.
 select tests_support.eq(
-  (select count(*) from storage.objects o where o.bucket_id = 'space-assets')::bigint,
+  (select count(*) from storage.objects o
+    where o.bucket_id = 'space-assets'
+      and (o.name like (:'s1' || '/%') or o.name like (:'s2' || '/%')))::bigint,
   5::bigint, '객체 메타데이터 5건 준비');
 
 -- 경로 문자열을 나중 검증에 쓰기 위해 저장한다.
@@ -97,7 +102,10 @@ select set_config('request.jwt.claim.sub', '', true);
 set local role anon;
 
 select tests_support.expect_no_rows(
-  $q$select id from storage.objects where bucket_id = 'space-assets'$q$,
+  $q$select id from storage.objects
+      where bucket_id = 'space-assets'
+        and (name like 'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaa1/%'
+             or name like 'bbbbbbb2-bbbb-4bbb-8bbb-bbbbbbbbbbb2/%')$q$,
   'anon은 버킷 객체를 볼 수 없다');
 
 select tests_support.expect_error(
@@ -114,7 +122,8 @@ select set_config('request.jwt.claim.sub', :'ua', true);
 set local role authenticated;
 
 select tests_support.eq(
-  (select count(*) from storage.objects o where o.bucket_id = 'space-assets')::bigint,
+  (select count(*) from storage.objects o
+    where o.bucket_id = 'space-assets' and o.name like (:'s1' || '/%'))::bigint,
   4::bigint, 'A는 자기 파일 4건을 본다(deleting 제외)');
 
 select tests_support.ok(
@@ -157,7 +166,9 @@ do $do$
 declare v_state text; v_count integer := -1;
 begin
   begin
-    update storage.objects set owner = owner where bucket_id = 'space-assets';
+    -- 픽스처 공간 객체만 대상으로 한다(다른 작업의 객체를 건드리지 않는다).
+    update storage.objects set owner = owner
+     where bucket_id = 'space-assets' and name like 'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaa1/%';
     get diagnostics v_count = row_count;
   exception when others then
     v_state := sqlstate;
@@ -170,7 +181,8 @@ do $do$
 declare v_state text; v_count integer := -1;
 begin
   begin
-    delete from storage.objects where bucket_id = 'space-assets';
+    delete from storage.objects
+     where bucket_id = 'space-assets' and name like 'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaa1/%';
     get diagnostics v_count = row_count;
   exception when others then
     v_state := sqlstate;
@@ -188,7 +200,8 @@ select set_config('request.jwt.claim.sub', :'ub', true);
 set local role authenticated;
 
 select tests_support.eq(
-  (select count(*) from storage.objects o where o.bucket_id = 'space-assets')::bigint,
+  (select count(*) from storage.objects o
+    where o.bucket_id = 'space-assets' and o.name like (:'s1' || '/%'))::bigint,
   2::bigint, 'B에게는 첨부된 사진과 커버 2건만 보인다');
 
 select tests_support.ok(
@@ -222,7 +235,8 @@ select set_config('request.jwt.claim.sub', :'uc', true);
 set local role authenticated;
 
 select tests_support.eq(
-  (select count(*) from storage.objects o where o.bucket_id = 'space-assets')::bigint,
+  (select count(*) from storage.objects o
+    where o.bucket_id = 'space-assets' and o.name like (:'s1' || '/%'))::bigint,
   0::bigint, 'C에게는 남의 공간 객체가 보이지 않는다');
 
 select tests_support.expect_error(

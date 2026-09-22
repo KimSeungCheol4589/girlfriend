@@ -21,7 +21,7 @@ docker cp supabase/tests "$C":/tmp/db-001-tests
 
 for f in 10_schema_constraints.sql 20_privileges.sql 30_rls_visibility.sql \
          40_space_and_invites.sql 50_mutations.sql 60_deferred_triggers.sql \
-         70_storage_policies.sql; do
+         70_storage_policies.sql 80_restaurants_food001.sql; do
   echo "== $f"
   docker exec -i "$C" psql -U postgres -d postgres -X -q -v ON_ERROR_STOP=1 \
     -f "/tmp/db-001-tests/$f" || { echo "FAILED: $f"; break; }
@@ -35,7 +35,7 @@ $c = 'supabase_db_girlfriend-db-env-d82f'
 docker cp supabase/tests "${c}:/tmp/db-001-tests"
 foreach ($f in @('10_schema_constraints.sql','20_privileges.sql','30_rls_visibility.sql',
                  '40_space_and_invites.sql','50_mutations.sql','60_deferred_triggers.sql',
-                 '70_storage_policies.sql')) {
+                 '70_storage_policies.sql','80_restaurants_food001.sql')) {
   Write-Output "== $f"
   docker exec -i $c psql -U postgres -d postgres -X -q -v ON_ERROR_STOP=1 -f "/tmp/db-001-tests/$f"
   if ($LASTEXITCODE -ne 0) { Write-Output "FAILED: $f"; break }
@@ -60,6 +60,13 @@ docker exec "$C" rm -rf /tmp/db-001-tests
 | `50_mutations.sql` | 업로드 신뢰 경계(로그인 사용자 확정 차단, 위조 메타데이터 거부), **새 첨부 파일의 업로더 요구(D2)**, 추억 저장/삭제, 버전 충돌, 중복 요청, 맛집 상태 되돌리기, 개인 후기 권한 |
 | `60_deferred_triggers.sql` | **회귀**: 지연 제약 트리거가 로그인 역할 컨텍스트에서 실행되는지 |
 | `70_storage_policies.sql` | 비공개 버킷 정책: 경로 위조·남의 대기 파일·외부 계정·덮어쓰기·삭제 차단 |
+| `80_restaurants_food001.sql` | FOOD-001: 확인형 맛집 삭제(`delete_restaurant_confirmed`), 이전 삭제 함수 실행 권한 회수, 후기 저장·수정·삭제의 맛집 버전 증가와 그로 인한 확인형 삭제·방문 취소·정보 수정 충돌, 두 구성원 공동 편집, 본인 후기만, 방문일 불변식, 지도 링크 호스트, 재전송·입력 불일치, 외부 계정·비로그인 차단 |
+
+`50_mutations.sql`의 맛집 구간은 FOOD-001 계약 변경(후기 변경 → 맛집 버전 +1)에 맞춰 expectedVersion을 2 → 5로 바꾸고,
+"후기가 바뀌기 전 버전의 방문 취소는 확인이 있어도 CONFLICT" 단언을 추가했다.
+
+FOOD-001 동시성(결정적 겹침): `sh supabase/tests/food001_concurrency/run_food_race_tests.sh`.
+DB-001 러너·`tests_race` 스키마와 분리된 `tests_food_race` 스키마와 고정 UUID(`0f00d001-…`)만 쓴다.
 
 ## 2. 동시성 테스트
 
