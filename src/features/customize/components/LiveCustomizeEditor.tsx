@@ -7,7 +7,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { useUnsavedGuard } from '@/components/UnsavedGuard';
 import { createRequestKeyTracker } from '@/features/memories/live/request-key';
-import { HOME_SECTION_LABELS } from '@/lib/contracts';
+import { HOME_SECTION_LABELS, type HomeSectionKey } from '@/lib/contracts';
 import { accentContrastColor, contrastRatio, isHexColor, THEME_PRESET_LIST } from '@/lib/theme';
 
 import { coverPhotoUrl } from '../constants';
@@ -38,6 +38,10 @@ import { CoverField } from './CoverField';
 import { CustomizePreviewPanel } from './CustomizePreviewPanel';
 import { PinnedMemoryPanel } from './PinnedMemoryPanel';
 import { useCoverUpload } from './use-cover-upload';
+
+const ACCENT_MESSAGE_ID = 'accent-hex-message';
+const ACCENT_FORMAT_MESSAGE =
+  '포인트 색상은 #RRGGBB 형식으로 입력해 주세요. 예: #8b435a — 고치기 전에는 저장하지 않습니다.';
 
 /**
  * 실제 꾸미기 편집기.
@@ -72,22 +76,39 @@ export function LiveCustomizeEditor({
   const [saving, setSaving] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
+  const [sectionStatus, setSectionStatus] = useState('');
   const [pinDirty, setPinDirty] = useState(false);
   const [refreshing, startRefresh] = useTransition();
   const tracker = useRef(createRequestKeyTracker());
   const inFlight = useRef(false);
   /** 사용자가 "최신 설정 불러오기"를 고른 뒤 도착한 서버 값만 받아들인다. */
   const adoptServerValue = useRef(false);
+  /** 폐기 통지는 렌더 밖에서 오므로 최신 저장 커버를 참조로 들고 있는다. */
+  const savedCoverRef = useRef(saved.coverAssetId);
+  savedCoverRef.current = saved.coverAssetId;
+  /** 저장이 막히면 첫 오류 필드로 포커스를 옮긴다(DESIGN.md 9). */
+  const accentInputRef = useRef<HTMLInputElement>(null);
 
   const handleCoverReady = useCallback((assetId: string) => {
     setDraft((current) => ({ ...current, coverAssetId: assetId }));
     setNotice(null);
   }, []);
 
+  /**
+   * 대기 파일이 되돌려졌다. 초안이 그 파일을 가리키고 있으면 저장할 수 없는 값이므로
+   * 마지막으로 저장된 커버로 되돌린다(교체하려던 새 사진이 실패해도 초안은 늘 저장 가능한 값이다).
+   */
+  const handleCoverDiscarded = useCallback((assetId: string) => {
+    setDraft((current) =>
+      current.coverAssetId === assetId ? { ...current, coverAssetId: savedCoverRef.current } : current,
+    );
+  }, []);
+
   const upload = useCoverUpload({
     enabled: photosEnabled,
     savedCoverAssetId: saved.coverAssetId,
     onReady: handleCoverReady,
+    onDiscarded: handleCoverDiscarded,
   });
 
   const settingsDirty = !sameCustomization(draft, toDraft(saved));
@@ -116,15 +137,19 @@ export function LiveCustomizeEditor({
 
   // 사용자가 명시적으로 고른 "최신 설정 불러오기" 뒤에만 서버 값으로 바꾼다.
   // 그렇지 않으면 충돌 때 초안을 조용히 덮어써 사용자가 고른 값을 잃는다.
+  const clearPendingCover = upload.clearPending;
   useEffect(() => {
     if (!adoptServerValue.current) return;
     adoptServerValue.current = false;
+    // 고르던 값을 버리는 선택이므로 올려 둔 대기 파일도 함께 되돌린다.
+    // 그러지 않으면 초안은 저장된 커버인데 화면에는 올리던 사진의 미리보기가 남는다.
+    clearPendingCover();
     setSaved(serverSaved);
     setDraft(toDraft(serverSaved));
     setAccentInput(serverSaved.accentColor);
     setProblem(null);
     setNotice('최신 설정을 불러왔어요. 고르던 값 대신 저장된 값을 보여 줍니다.');
-  }, [serverSaved]);
+  }, [serverSaved, clearPendingCover]);
 
   const patch = (next: Partial<CustomizationDraft>) => {
     setDraft((current) => ({ ...current, ...next }));
@@ -133,7 +158,39 @@ export function LiveCustomizeEditor({
 
   const handleAccentInput = (value: string) => {
     setAccentInput(value);
-    if (isHexColor(value)) patch({ accentColor: value.toLowerCase() });
+    if (!isHexColor(value)) return;
+    patch({ accentColor: value.toLowerCase() });
+    // 형식 오류만 걷는다. 충돌 안내는 사용자가 "불러오기"를 고를 때까지 남아야 한다.
+    setProblem((current) => (current?.message === ACCENT_FORMAT_MESSAGE ? null : current));
+  };
+
+  /**
+   * 섹션 순서 이동.
+   *
+   * 끝에 닿으면 누르던 버튼이 `disabled`가 되어 포커스가 body로 빠진다. 키보드·스크린 리더로
+   * 연달아 조정할 수 있도록 같은 항목의 **반대 방향 버튼**으로 포커스를 옮기고, 바뀐 결과를
+   * live region으로 알린다.
+   */
+  const moveSection = (key: HomeSectionKey, direction: 'up' | 'down') => {
+    const next = moveHomeSection(draft.sections, key, direction);
+    const position = next.findIndex((section) => section.key === key);
+    if (position === -1) return;
+
+    patch({ sections: next });
+    setSectionStatus(
+      `${HOME_SECTION_LABELS[key]} 섹션을 ${position + 1}번째로 옮겼어요. 전체 ${next.length}개 중 ${position + 1}번째입니다.`,
+    );
+
+    const atEdge = direction === 'up' ? position === 0 : position === next.length - 1;
+    if (!atEdge) return;
+    // 이동한 버튼이 비활성화되는 경우에만 포커스를 옮긴다.
+    const fallback = direction === 'up' ? 'down' : 'up';
+    window.requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLButtonElement>(
+        `button[data-section="${key}"][data-move="${fallback}"]`,
+      );
+      target?.focus();
+    });
   };
 
   const restore = () => {
@@ -150,11 +207,20 @@ export function LiveCustomizeEditor({
 
   const handleSave = async () => {
     if (inFlight.current) return;
+    // 잘못된 색상 값으로는 저장하지 않는다. 입력란에 보이는 값과 저장될 값이 달라지기 때문이다.
+    if (!isHexColor(accentInput)) {
+      setNotice(null);
+      setProblem({ code: 'VALIDATION_ERROR', message: ACCENT_FORMAT_MESSAGE });
+      accentInputRef.current?.focus();
+      return;
+    }
     inFlight.current = true;
     setSaving(true);
     setProblem(null);
     setNotice(null);
     upload.setSaveInFlight(true);
+    // 저장 결과를 받기 전에는 "최신 설정 불러오기" 대기 표시가 남아 있으면 안 된다.
+    adoptServerValue.current = false;
 
     const signature = customizationSignatureValues(draft, saved.version);
     const requestId = tracker.current.keyFor(signature);
@@ -179,7 +245,9 @@ export function LiveCustomizeEditor({
 
     if (!result.ok) {
       // 초안은 그대로 둔다. 무엇이 저장되지 않았는지만 알린다.
-      upload.setSaveInFlight(false);
+      // 확정 응답일 때만 정리를 다시 허용한다. 서버 반영 여부를 모르는 응답(재시도 가능·원인 불명)에서
+      // 플래그를 내리면, 이어지는 취소·교체가 방금 저장됐을지도 모르는 파일을 정리 대상으로 삼는다.
+      if (isDefinitiveCustomizeResult(result)) upload.setSaveInFlight(false);
       setProblem({ code: result.code, message: result.message });
       return;
     }
@@ -208,6 +276,7 @@ export function LiveCustomizeEditor({
     startRefresh(() => router.refresh());
   };
 
+  const accentValid = isHexColor(accentInput);
   const ratio = contrastRatio(accentContrastColor(draft.accentColor), draft.accentColor);
   const previewCoverSrc =
     upload.previewUrl !== null && draft.coverAssetId !== null && draft.coverAssetId !== saved.coverAssetId
@@ -333,11 +402,14 @@ export function LiveCustomizeEditor({
                 </label>
                 <input
                   id="accent-hex"
+                  ref={accentInputRef}
                   value={accentInput}
                   onChange={(event) => handleAccentInput(event.target.value)}
                   placeholder="#8b435a"
                   spellCheck={false}
-                  aria-invalid={!isHexColor(accentInput)}
+                  aria-invalid={!accentValid}
+                  // 오류·설명 문단을 입력과 연결한다. 스크린 리더가 값과 함께 읽는다.
+                  aria-describedby={ACCENT_MESSAGE_ID}
                   className="field-input w-40 font-mono"
                 />
               </div>
@@ -352,10 +424,12 @@ export function LiveCustomizeEditor({
               </span>
             </div>
 
-            {!isHexColor(accentInput) ? (
-              <p className="field-error">#RRGGBB 형식으로 입력해 주세요. 예: #8b435a</p>
+            {!accentValid ? (
+              <p id={ACCENT_MESSAGE_ID} className="field-error">
+                {ACCENT_FORMAT_MESSAGE}
+              </p>
             ) : (
-              <p className="field-hint">
+              <p id={ACCENT_MESSAGE_ID} className="field-hint">
                 글자색은 대비에 맞춰 자동으로 고릅니다. 현재 대비 {ratio ? ratio.toFixed(1) : '-'}:1
                 {ratio !== null && ratio < 4.5
                   ? ' — 작은 글자에는 조금 약해요. 더 진하거나 더 연한 색을 권합니다.'
@@ -387,6 +461,10 @@ export function LiveCustomizeEditor({
             <p className="field-hint mt-0.5">
               세 섹션의 순서만 바꿀 수 있고 새로 추가하거나 지울 수는 없어요. 숨기면 홈에서 그 섹션만 빠집니다.
             </p>
+            {/* 순서 변경은 화면 위치만 바뀌므로 소리로도 알린다. */}
+            <p role="status" aria-live="polite" className="sr-only" data-testid="section-order-status">
+              {sectionStatus}
+            </p>
 
             <ol className="mt-4 space-y-2">
               {draft.sections.map((section, index) => (
@@ -401,7 +479,9 @@ export function LiveCustomizeEditor({
 
                   <button
                     type="button"
-                    onClick={() => patch({ sections: moveHomeSection(draft.sections, section.key, 'up') })}
+                    data-move="up"
+                    data-section={section.key}
+                    onClick={() => moveSection(section.key, 'up')}
                     disabled={index === 0}
                     aria-label={`${HOME_SECTION_LABELS[section.key]} 위로`}
                     className="tap-target w-touch rounded-pill border border-border text-muted disabled:opacity-30"
@@ -410,7 +490,9 @@ export function LiveCustomizeEditor({
                   </button>
                   <button
                     type="button"
-                    onClick={() => patch({ sections: moveHomeSection(draft.sections, section.key, 'down') })}
+                    data-move="down"
+                    data-section={section.key}
+                    onClick={() => moveSection(section.key, 'down')}
                     disabled={index === draft.sections.length - 1}
                     aria-label={`${HOME_SECTION_LABELS[section.key]} 아래로`}
                     className="tap-target w-touch rounded-pill border border-border text-muted disabled:opacity-30"

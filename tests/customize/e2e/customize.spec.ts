@@ -204,6 +204,38 @@ test.describe('꾸미기 실제 저장', () => {
     expect(after.version).toBe(before.version + 1);
   });
 
+  test('잘못된 포인트 색상은 저장을 막고 오류를 입력란에 연결해 알린다', async () => {
+    await openCustomize(a.page);
+    const before = await readSettings(env, tokenA);
+
+    // 저장할 변경을 먼저 만들고(버튼 활성화), 색상만 잘못 입력한다.
+    const next = otherThemeThan(before.theme_key);
+    await themeButton(a.page, next.label).click();
+    const accent = a.page.getByLabel('직접 입력');
+    await accent.fill('#xyz');
+    await expect(accent).toHaveAttribute('aria-invalid', 'true');
+
+    // 오류 문단이 입력과 연결돼 있어야 스크린 리더가 값과 함께 읽는다.
+    const describedBy = await accent.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    await expect(a.page.locator(`#${describedBy}`)).toContainText('#RRGGBB');
+
+    await a.page.getByRole('button', { name: SAVE_BUTTON }).click();
+
+    // 저장되지 않고, 상단 요약이 뜨고, 포커스가 잘못된 필드로 간다.
+    await expect(editorAlert(a.page)).toContainText('#RRGGBB');
+    await expect(accent).toBeFocused();
+    expect((await readSettings(env, tokenA)).version).toBe(before.version);
+
+    // 고치면 다시 저장할 수 있다.
+    await accent.fill('#4f6d8c');
+    await a.page.getByRole('button', { name: SAVE_BUTTON }).click();
+    await expect(a.page.getByText('꾸미기 설정을 저장했어요')).toBeVisible();
+    const saved = await readSettings(env, tokenA);
+    expect(saved.accent_color).toBe('#4f6d8c');
+    expect(saved.version).toBe(before.version + 1);
+  });
+
   test('홈은 저장된 순서·표시 설정을 따른다', async () => {
     const current = await readSettings(env, tokenA);
     await saveSettingsViaApi(env, tokenA, {
@@ -230,6 +262,31 @@ test.describe('꾸미기 실제 저장', () => {
     expect(order.indexOf('section-wishlist')).toBeLessThan(order.indexOf('section-recent'));
   });
 
+  test('추억 두 섹션을 숨겨도 표시 상태인 맛집 섹션은 홈에 남는다', async () => {
+    // 맛집 섹션은 추억 요약 데이터를 쓰지 않는다. 추억을 모두 숨겼다고 해서 함께 사라지면 안 된다.
+    const current = await readSettings(env, tokenA);
+    await saveSettingsViaApi(env, tokenA, {
+      themeKey: current.theme_key,
+      accentColor: current.accent_color,
+      coverAssetId: current.cover_asset_id,
+      expectedVersion: current.version,
+      sections: [
+        { key: 'pinned', visible: false },
+        { key: 'recentMemories', visible: false },
+        { key: 'wishlist', visible: true },
+      ],
+    });
+
+    await a.page.goto('/');
+    await expect(a.page.getByRole('heading', { name: '다음에 가고 싶은 맛집' })).toBeVisible();
+    await expect(a.page.getByRole('heading', { name: '홈에 고정한 추억' })).toHaveCount(0);
+    await expect(a.page.getByRole('heading', { name: '최근 추억' })).toHaveCount(0);
+    // 하나라도 표시 중이면 "전부 숨김" 안내가 뜨면 안 된다.
+    await expect(a.page.getByText('홈 섹션을 모두 숨겼습니다')).toHaveCount(0);
+    // 추억 섹션이 없으므로 추억 쓰기 버튼도 없다.
+    await expect(a.page.getByRole('link', { name: '새 추억 쓰기' })).toHaveCount(0);
+  });
+
   test('모든 섹션을 숨기면 홈이 그 사실을 알린다', async () => {
     const current = await readSettings(env, tokenA);
     await saveSettingsViaApi(env, tokenA, {
@@ -254,6 +311,13 @@ test.describe('꾸미기 실제 저장', () => {
   test('꾸미기 화면에서 섹션 순서를 바꿔 저장할 수 있다', async () => {
     await openCustomize(a.page);
     await a.page.getByRole('button', { name: '최근 추억 위로' }).click();
+
+    // 맨 위로 올라가면 누르던 버튼이 비활성화된다. 키보드로 계속 조정할 수 있도록
+    // 같은 항목의 반대 방향 버튼으로 포커스가 옮겨 가고, 바뀐 자리를 소리로도 알린다.
+    await expect(a.page.getByTestId('section-order-status')).toContainText('최근 추억');
+    await expect(a.page.getByTestId('section-order-status')).toContainText('1번째');
+    await expect(a.page.getByRole('button', { name: '최근 추억 아래로' })).toBeFocused();
+
     await a.page.getByRole('button', { name: '홈에 고정한 추억 표시하기' }).click();
     await a.page.getByRole('button', { name: SAVE_BUTTON }).click();
     await expect(a.page.getByText('꾸미기 설정을 저장했어요')).toBeVisible();

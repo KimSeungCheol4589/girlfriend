@@ -93,12 +93,20 @@ export function useCoverUpload({
   enabled,
   savedCoverAssetId,
   onReady,
+  onDiscarded,
 }: {
   /** 서버에 사진 확정 설정이 없으면 새 업로드를 시작하지 않는다. */
   enabled: boolean;
   savedCoverAssetId: string | null;
   /** 확정이 끝나 초안 커버로 쓸 수 있게 된 순간. */
   onReady: (assetId: string) => void;
+  /**
+   * 대기 파일을 되돌린 순간(교체·해제·이탈).
+   *
+   * 초안 커버가 그 파일을 가리키고 있으면 더는 쓸 수 없다. 화면이 초안을 저장된 값으로 되돌리게
+   * 알린다. 알리지 않으면 이미 폐기된 asset을 저장하려다 DB가 거부한다.
+   */
+  onDiscarded: (assetId: string) => void;
 }): CoverUpload {
   const [status, setStatus] = useState<CoverUploadStatus>('idle');
   const [fileName, setFileName] = useState<string | null>(null);
@@ -125,22 +133,27 @@ export function useCoverUpload({
    * **그 파이프라인이 만든** 파일만 되돌린다. 저장에 쓰였거나 저장 결과를 모르는 동안에는 두고,
    * 결과와 무관하게 사용자 흐름을 막지 않는다(남은 파일은 만료 정리 대상이 된다).
    */
-  const discardPipeline = useCallback((target: Pipeline | null) => {
-    const prepared = target?.prepared ?? null;
-    if (target) target.prepared = null; // 같은 파이프라인이 두 번 취소하지 않게 한다.
-    if (!prepared) return;
+  const discardPipeline = useCallback(
+    (target: Pipeline | null) => {
+      const prepared = target?.prepared ?? null;
+      if (target) target.prepared = null; // 같은 파이프라인이 두 번 취소하지 않게 한다.
+      if (!prepared) return;
 
-    const plan = planPendingCoverDiscard({
-      pendingAssetId: prepared.assetId,
-      savedCoverAssetId: savedRef.current,
-      saveInFlight: saveInFlight.current,
-    });
-    const assetId = plan.discard;
-    if (assetId === null) return;
+      const plan = planPendingCoverDiscard({
+        pendingAssetId: prepared.assetId,
+        savedCoverAssetId: savedRef.current,
+        saveInFlight: saveInFlight.current,
+      });
+      const assetId = plan.discard;
+      if (assetId === null) return;
 
-    if (pendingAssetId.current === assetId) pendingAssetId.current = null;
-    void callAction(() => discardCoverPhotoAction({ assetId, requestId: newRequestId() }));
-  }, []);
+      if (pendingAssetId.current === assetId) pendingAssetId.current = null;
+      // 초안이 이 파일을 가리키고 있을 수 있다. 먼저 알려 화면이 저장 가능한 값으로 되돌리게 한다.
+      onDiscarded(assetId);
+      void callAction(() => discardCoverPhotoAction({ assetId, requestId: newRequestId() }));
+    },
+    [onDiscarded],
+  );
 
   const run = useCallback(async () => {
     const current = pipeline.current;

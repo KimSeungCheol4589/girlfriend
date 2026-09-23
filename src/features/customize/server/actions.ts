@@ -145,7 +145,12 @@ export async function saveCustomizationAction(raw: unknown): Promise<CustomizeRe
 export async function prepareCoverPhotoAction(raw: unknown): Promise<CustomizeResult<PreparedCover>> {
   const parsed = prepareCoverInputSchema.safeParse(raw);
   if (!parsed.success) {
-    return customizeFailure('VALIDATION_ERROR', PHOTO_REJECT_MESSAGES.unsupported_format);
+    // 거부 사유를 그대로 알린다. 용량 초과를 "지원하지 않는 형식"으로 안내하지 않는다.
+    const failedField = parsed.error.issues[0]?.path[0];
+    return customizeFailure(
+      'VALIDATION_ERROR',
+      failedField === 'bytes' ? PHOTO_REJECT_MESSAGES.too_large : PHOTO_REJECT_MESSAGES.unsupported_format,
+    );
   }
   const input = parsed.data;
 

@@ -78,6 +78,10 @@ const DETAILED_MESSAGES: Record<string, string> = {
   'VALIDATION_ERROR:themeKey:invalid': '테마는 크림·로즈·세이지 중에서 고를 수 있어요.',
   'VALIDATION_ERROR:accentColor:format': '포인트 색상은 #RRGGBB 형식으로 입력해 주세요.',
   'VALIDATION_ERROR:homeSections:invalid': '홈 섹션은 세 가지가 한 번씩만 들어가야 해요.',
+  'VALIDATION_ERROR:coverAssetId:purpose':
+    '이 파일은 커버로 쓸 수 없어요. 커버 사진을 다시 골라 주세요.',
+  'VALIDATION_ERROR:coverAssetId:not_ready':
+    '고른 커버 사진을 더 쓸 수 없어요(확인이 끝나지 않았거나 정리된 파일입니다). 커버 사진을 다시 골라 주세요.',
 };
 
 export function customizeFailure(code: CustomizeErrorCode, message?: string): CustomizeFailure {

@@ -18,8 +18,10 @@ import {
   confirmDialogButton,
   coverFile,
   coverUrlFor,
+  editorAlert,
   expectRpcError,
   homeCoverImage,
+  saveSettingsViaApi,
   openCustomize,
   openSession,
   otherThemeThan,
@@ -407,6 +409,83 @@ test.describe('커버 사진', () => {
     await expect
       .poll(async () => (await assetRow(firstAssetId))?.state, { timeout: 20_000 })
       .toBe('deleting');
+  });
+
+  test('확정된 커버를 실패하는 파일로 바꿔도 초안은 저장 가능한 값으로 남는다', async () => {
+    await openCustomize(a.page);
+    const before = await readSettings(env, tokenA);
+    expect(before.cover_asset_id, '이 검증은 저장된 커버가 있을 때를 본다').not.toBeNull();
+    const existing = await ownCoverIds();
+
+    // A: 정상 파일을 올려 확정까지 간다(초안 커버 = A).
+    const input = a.page.getByLabel('사진 고르기');
+    await input.setInputFiles(coverFile('good.png'));
+    await expect(a.page.getByText('사진 확인이 끝났어요')).toBeVisible();
+    const pendingId = await waitForNewOwnCover(existing);
+    // 초안이 저장된 커버와 달라졌으므로 되돌리기 선택지가 보인다.
+    await expect(a.page.getByRole('button', { name: '저장된 커버로 되돌리기' })).toBeVisible();
+
+    // B: 이미지가 아닌 내용을 올려 브라우저 정규화 단계에서 실패시킨다.
+    await input.setInputFiles({
+      name: 'broken.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('not an image at all'),
+    });
+    await expect(editorAlert(a.page), '업로드 실패는 소리로도 알린다').toContainText('JPEG·PNG·WebP');
+
+    // A는 교체 시점에 정리된다. 초안이 A를 계속 가리키면 저장할 수 없는 값이 남는다.
+    await expect
+      .poll(async () => (await assetRow(pendingId))?.state, { timeout: 20_000 })
+      .toBe('deleting');
+    await expect(
+      a.page.getByRole('button', { name: '저장된 커버로 되돌리기' }),
+      '초안이 저장된 커버로 되돌아왔다',
+    ).toHaveCount(0);
+    await expect(
+      a.page.getByRole('button', { name: SAVE_BUTTON }),
+      '되돌아왔으므로 저장할 변경이 없다',
+    ).toBeDisabled();
+
+    // 설정과 저장된 커버는 그대로다.
+    const after = await readSettings(env, tokenA);
+    expect(after.cover_asset_id).toBe(before.cover_asset_id);
+    expect(after.version).toBe(before.version);
+    expect((await assetRow(before.cover_asset_id ?? ''))?.state).toBe('ready');
+  });
+
+  test('충돌 뒤 최신 설정을 불러오면 올리던 커버 초안도 함께 정리된다', async () => {
+    await openCustomize(a.page);
+    const before = await readSettings(env, tokenA);
+    const existing = await ownCoverIds();
+
+    await uploadCover(a);
+    const pendingId = await waitForNewOwnCover(existing);
+
+    // 화면이 열려 있는 동안 상대가 먼저 저장해 버전을 올린다.
+    await saveSettingsViaApi(env, tokenB, {
+      themeKey: before.theme_key,
+      accentColor: before.accent_color,
+      coverAssetId: before.cover_asset_id,
+      sections: before.home_sections,
+      expectedVersion: before.version,
+    });
+
+    await a.page.getByRole('button', { name: SAVE_BUTTON }).click();
+    await expect(editorAlert(a.page)).toContainText('상대방이 먼저 저장했어요');
+
+    // 사용자가 고르던 값을 버리기로 한다. 올려 둔 대기 파일도 함께 정리돼야 한다.
+    await a.page.getByRole('button', { name: /최신 설정 불러오기/ }).click();
+    await expect(a.page.getByText('최신 설정을 불러왔어요')).toBeVisible();
+    await expect(a.page.getByText('사진 확인이 끝났어요')).toHaveCount(0);
+    await expect(a.page.getByRole('button', { name: SAVE_BUTTON })).toBeDisabled();
+
+    await expect
+      .poll(async () => (await assetRow(pendingId))?.state, { timeout: 20_000 })
+      .toBe('deleting');
+
+    // 상대가 저장한 커버는 그대로다.
+    const after = await readSettings(env, tokenA);
+    expect(after.cover_asset_id).toBe(before.cover_asset_id);
   });
 
   test('저장하지 않고 메뉴로 나가면 올린 파일을 정리한다', async () => {

@@ -112,7 +112,8 @@ export function CoverField({
           ) : null}
 
           {upload.error ? (
-            <p className="field-error">
+            // 업로드 실패도 소리로 알린다(진행·완료만 알리면 실패를 놓친다).
+            <p role="alert" className="field-error">
               {upload.error}
               {upload.retryable ? (
                 <button type="button" className="btn-quiet !min-h-[32px] ml-2 text-xs" onClick={upload.retry}>

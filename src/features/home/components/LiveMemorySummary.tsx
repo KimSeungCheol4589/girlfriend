@@ -6,7 +6,11 @@ import { MemoryCard } from '@/components/MemoryCard';
 import { defaultHomeSections, type HomeSection } from '@/features/customize/sections';
 import { toMemoryCardData } from '@/features/memories/live/card';
 import { QueryFailure } from '@/features/memories/live/components/QueryFailure';
-import { getHomeMemorySummary, type HomeMemorySummary } from '@/features/memories/server/queries';
+import {
+  getHomeMemorySummary,
+  type HomeMemorySummary,
+  type QueryFailureCode,
+} from '@/features/memories/server/queries';
 import { HOME_SECTION_LABELS } from '@/lib/contracts';
 
 /**
@@ -38,27 +42,17 @@ export async function LiveMemorySummary({
     (section) => section.key === 'pinned' || section.key === 'recentMemories',
   );
   const result = needsMemories ? await getHomeMemorySummary() : null;
-
-  if (result && !result.ok) {
-    return (
-      <section aria-labelledby="section-memories">
-        <h2 id="section-memories" className="mb-3 text-lg font-bold text-text">
-          {HOME_SECTION_LABELS.recentMemories}
-        </h2>
-        <QueryFailure code={result.code} title="추억 요약을 불러오지 못했어요" />
-      </section>
-    );
-  }
-
   const summary = result?.ok ? result.data : null;
+  // 추억 조회가 실패해도 **추억 섹션 자리에만** 실패를 알린다. 표시 상태인 다른 섹션은 그대로 그린다.
+  const failure = result && !result.ok ? result.code : null;
 
   return (
     <div className="space-y-8">
       {visible.map((section) => (
-        <div key={section.key}>{renderSection(section.key, summary)}</div>
+        <div key={section.key}>{renderSection(section.key, summary, failure)}</div>
       ))}
 
-      {needsMemories ? (
+      {needsMemories && failure === null ? (
         <div className="flex flex-wrap gap-2">
           <Link href="/memories/new" className="btn-primary">
             새 추억 쓰기
@@ -69,11 +63,41 @@ export async function LiveMemorySummary({
   );
 }
 
-function renderSection(key: HomeSection['key'], summary: HomeMemorySummary | null): ReactNode {
+/**
+ * 섹션 하나를 그린다.
+ *
+ * 맛집 자리는 추억 요약 데이터를 쓰지 않는다. 그래서 추억 두 섹션을 모두 숨겼거나 추억 조회가
+ * 실패한 경우에도 **맛집 섹션은 그대로 보여야 한다.** 요약이 없다고 먼저 빠져나오면 표시로 저장해
+ * 둔 섹션이 홈에서 통째로 사라진다.
+ */
+function renderSection(
+  key: HomeSection['key'],
+  summary: HomeMemorySummary | null,
+  failure: QueryFailureCode | null,
+): ReactNode {
+  if (key === 'wishlist') return <WishlistSection />;
+  if (failure !== null) return <MemorySectionFailure sectionKey={key} code={failure} />;
   if (!summary) return null;
   if (key === 'pinned') return <PinnedSection summary={summary} />;
-  if (key === 'recentMemories') return <RecentSection summary={summary} />;
-  return <WishlistSection />;
+  return <RecentSection summary={summary} />;
+}
+
+/** 추억 섹션 자리의 실패 안내. 표시로 저장된 자리를 비우지 않고 실패를 그대로 알린다. */
+function MemorySectionFailure({
+  sectionKey,
+  code,
+}: {
+  sectionKey: 'pinned' | 'recentMemories';
+  code: QueryFailureCode;
+}) {
+  return (
+    <section aria-labelledby={`section-${sectionKey}`}>
+      <h2 id={`section-${sectionKey}`} className="mb-3 text-lg font-bold text-text">
+        {HOME_SECTION_LABELS[sectionKey]}
+      </h2>
+      <QueryFailure code={code} title="추억 요약을 불러오지 못했어요" />
+    </section>
+  );
 }
 
 function PinnedSection({ summary }: { summary: HomeMemorySummary }) {
