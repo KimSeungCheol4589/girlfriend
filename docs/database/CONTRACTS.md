@@ -217,6 +217,35 @@ DESIGN `saveMemory`. 본문과 사진 연결을 한 트랜잭션으로 저장한
 
 ---
 
+## 4.1 함께 하고 싶은 일
+
+`wish_items`는 맛집과 분리된 두 구성원의 공유 위시 목록이다. `authenticated`와 `service_role`에는 SELECT만 허용하고 직접 INSERT/UPDATE/DELETE는 허용하지 않는다. 모든 변경은 아래 RPC를 통한다.
+
+### `save_wish(p_wish_id uuid, p_title text, p_category text, p_memo text, p_link_url text, p_expected_version integer, p_request_id uuid) → jsonb`
+
+- 생성은 `p_wish_id = null`, `p_expected_version = 0`; 수정은 현재 version을 보낸다.
+- 분류는 `place | activity | trip | shopping | other`다. 제목은 1~100자, 메모는 2,000자 이하, 링크는 선택적 HTTPS 주소다.
+- 상태와 계획일은 이 함수에서 변경하지 않는다. 새 위시는 항상 `wish` 상태다.
+- 반환: `{"wishId", "version", "status", "category"}`
+- 오류: `GF401`, `GF404`, `GF422`, `GF409`
+
+### `set_wish_status(p_wish_id uuid, p_status text, p_planned_date date, p_expected_version integer, p_request_id uuid) → jsonb`
+
+- 상태는 `wish | planned | done`이다. `wish`로 되돌리면 계획일은 반드시 null이며 DB도 기존 계획일을 비운다.
+- `planned`와 `done`의 계획일은 선택 사항이며 미래 날짜도 허용한다.
+- 반환: `{"wishId", "version", "status", "plannedDate"}`
+- 오류: `GF401`, `GF404`, `GF422`, `GF409`
+
+### `delete_wish(p_wish_id uuid, p_expected_version integer, p_request_id uuid) → jsonb`
+
+- 행을 잠그고 현재 version을 확인한 뒤 삭제한다. 확인 화면을 연 뒤 다른 변경이 생기면 `GF409`로 거부한다.
+- 반환: `{"wishId"}`
+- 오류: `GF401`, `GF404`, `GF409`
+
+CAL-001에서 일정과 위시를 연결할 때는 삭제 의미를 먼저 정한다. FK 위반 `23503`을 그대로 `UNKNOWN`으로 처리하지 않고, 연결 해제·삭제 확인·삭제 거부 중 선택한 정책에 맞는 `CONFLICT` 응답과 안내를 제공해야 한다.
+
+---
+
 ## 5. 꾸미기·공간·프로필
 
 ### `save_customization(p_theme_key text, p_accent_color text, p_cover_asset_id uuid, p_home_sections jsonb, p_expected_version integer, p_request_id uuid) → jsonb`
@@ -255,6 +284,7 @@ DESIGN `saveMemory`. 본문과 사진 연결을 한 트랜잭션으로 저장한
 | `memory_photos` | 본인 공간 | `(memory_id, sort_order)` |
 | `restaurants` | 본인 공간 | `(space_id, status, created_at desc, id desc)` |
 | `restaurant_reviews` | 본인 공간(두 사람 모두 조회) | `(restaurant_id)` |
+| `wish_items` | 본인 공간 | `(space_id, status, created_at desc, id desc)` |
 | `assets` | 업로더 본인, 또는 `ready`이면서 실제로 기록·커버에 연결된 것 | `(space_id, purpose, state)` |
 | `space_invites`, `mutation_requests` | **조회 불가** | — |
 

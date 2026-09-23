@@ -82,6 +82,15 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    path: '/wishes',
+    label: '위시',
+    icon: (
+      <svg {...iconProps}>
+        <path d="M12 20.5s-7-4.3-7-10A4 4 0 0 1 12 8a4 4 0 0 1 7 2.5c0 5.7-7 10-7 10Z" />
+      </svg>
+    ),
+  },
+  {
     path: '/customize',
     label: '꾸미기',
     icon: (

@@ -12,6 +12,7 @@ describe('parseSafeNextPath', () => {
     expect(parseSafeNextPath('/')).toBe('/');
     expect(parseSafeNextPath('/settings')).toBe('/settings');
     expect(parseSafeNextPath('/memories?month=2026-09')).toBe('/memories?month=2026-09');
+    expect(parseSafeNextPath('/wishes?status=planned')).toBe('/wishes?status=planned');
     expect(parseSafeNextPath('/onboarding')).toBe('/onboarding');
     expect(parseSafeNextPath('/reset-password')).toBe('/reset-password');
   });
