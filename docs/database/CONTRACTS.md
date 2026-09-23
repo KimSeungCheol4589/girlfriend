@@ -190,21 +190,30 @@ DESIGN `saveMemory`. 본문과 사진 연결을 한 트랜잭션으로 저장한
 - 반환: `{"restaurantId": uuid, "version": integer, "status": text, "visitedDate": date|null, "deletedReviewCount": integer}`
 - 오류: `GF401`, `GF404`, `GF422`, `GF409`
 
-### `delete_restaurant(p_restaurant_id uuid, p_expected_version integer, p_request_id uuid) → jsonb`
+### `delete_restaurant_confirmed(p_restaurant_id uuid, p_confirm_delete_reviews boolean, p_expected_version integer, p_request_id uuid) → jsonb`
 
+- 후기가 있으면 `p_confirm_delete_reviews = true`여야 한다. 확인 없이 호출하면 아무것도 바꾸지 않고 `GF409`.
+- 맛집 행을 잠그고 현재 version과 후기 상태를 함께 확인하므로, 사용자가 삭제 확인 화면을 본 뒤 상대가 후기를 추가·수정·삭제하면 버전 충돌로 거부한다.
 - 반환: `{"restaurantId": uuid, "deletedReviewCount": integer}`
+- 기존 `delete_restaurant(uuid,integer,uuid)`는 `public`, `anon`, `authenticated`의 실행 권한을 모두 회수했다. 앱은 확인 인자를 받는 새 함수만 호출한다.
+- 오류: `GF401`, `GF404`, `GF409`
 
 ### `save_review(p_restaurant_id uuid, p_rating smallint, p_comment text, p_expected_version integer, p_request_id uuid) → jsonb`
 
 - 본인 후기만. 맛집이 `visited`일 때만 가능하다.
 - 생성은 `p_expected_version = 0`, 수정은 현재 버전. 동시 생성 경쟁은 UNIQUE 제약으로 `GF409`가 된다.
-- 반환: `{"reviewId": uuid, "restaurantId": uuid, "version": integer}`
+- 맛집 행을 먼저, 후기 행을 다음으로 잠근다. 후기 생성·수정과 같은 트랜잭션에서 맛집 `version`도 1 증가한다.
+  따라서 다른 구성원의 후기 변경 뒤 오래된 맛집 정보·상태·삭제 요청은 `GF409`로 거부된다.
+- 같은 `p_request_id` 재생은 후기나 맛집 version을 다시 증가시키지 않는다.
+- 반환: `{"reviewId": uuid, "restaurantId": uuid, "version": integer, "restaurantVersion": integer}`
 - 오류: `GF401`, `GF404`, `GF422`(별점 1~5, 후기 ≤500자), `GF409`(방문 상태 아님, 버전)
 
 ### `delete_review(p_review_id uuid, p_expected_version integer, p_request_id uuid) → jsonb`
 
 - 본인 후기만. 상대방 후기 ID를 보내면 존재 여부를 알리지 않고 `GF404`.
-- 반환: `{"reviewId": uuid, "restaurantId": uuid}`
+- 맛집 행을 먼저, 후기 행을 다음으로 잠그고 후기 삭제와 같은 트랜잭션에서 맛집 `version`을 1 증가시킨다. 같은 요청 재생은 version을 다시 증가시키지 않는다.
+- 반환: `{"reviewId": uuid, "restaurantId": uuid, "restaurantVersion": integer}`
+- 오류: `GF401`, `GF404`, `GF409`
 
 ---
 
