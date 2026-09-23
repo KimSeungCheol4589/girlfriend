@@ -532,9 +532,25 @@ select tests_support.expect_error(
   format($q$select public.delete_review(%L, 2, gen_random_uuid())$q$, tests_support.get('review_a')),
   'GF404', '상대방 후기는 삭제할 수 없다');
 
+-- FOOD-001 계약 변경: 후기 저장·삭제는 맛집 버전을 올린다.
+--   방문 처리(2) → A 후기(3) → A 수정(4) → B 후기(5). 실패한 시도는 롤백돼 버전을 올리지 않는다.
+reset role;
+select tests_support.eq(
+  (select r.version from public.restaurants r where r.id = tests_support.get('restaurant1')::uuid),
+  5, '후기 작성·수정이 맛집 버전을 올렸다(FOOD-001)');
+select set_config('request.jwt.claims', tests_support.claims(:'ub'), true);
+select set_config('request.jwt.claim.sub', :'ub', true);
+set local role authenticated;
+
+-- 후기를 보기 전 버전으로는 방문 취소할 수 없다(후기 변화를 버전으로 감지).
+select tests_support.expect_error(
+  format($q$select public.set_restaurant_status(%L, 'wishlist', null, true, 2, gen_random_uuid())$q$,
+         tests_support.get('restaurant1')),
+  'GF409', '후기가 바뀌기 전 버전의 방문 취소는 확인이 있어도 CONFLICT');
+
 -- 방문 취소는 후기 삭제 확인이 필요하다.
 select tests_support.expect_error(
-  format($q$select public.set_restaurant_status(%L, 'wishlist', null, false, 2, gen_random_uuid())$q$,
+  format($q$select public.set_restaurant_status(%L, 'wishlist', null, false, 5, gen_random_uuid())$q$,
          tests_support.get('restaurant1')),
   'GF409', '후기가 남아 있으면 확인 없이 방문 취소 불가');
 
@@ -556,7 +572,7 @@ do $do$
 declare v_result jsonb;
 begin
   v_result := public.set_restaurant_status(tests_support.get('restaurant1')::uuid,
-                'wishlist', null, true, 2, gen_random_uuid());
+                'wishlist', null, true, 5, gen_random_uuid());
   perform tests_support.eq((v_result ->> 'deletedReviewCount')::integer, 2,
     '확인된 방문 취소는 후기 2건을 함께 지운다');
   perform tests_support.eq(v_result ->> 'status', 'wishlist', '상태가 wishlist로 바뀐다');
@@ -609,20 +625,26 @@ begin
 end;
 $do$;
 
+-- 판정·정리는 이 파일의 픽스처 공간(:s1)으로만 한정한다.
+-- 같은 로컬 DB에는 다른 작업(MEM·AUTH·E2E)의 합성 데이터가 있을 수 있고, 그 행을 세거나
+-- 정리 함수에 넘기면 안 된다(롤백되더라도 다른 데이터의 상태에 판정이 좌우된다).
 reset role;
 select tests_support.eq(
-  (select count(*) from public.memories)::bigint, 0::bigint, '추억이 삭제된다');
+  (select count(*) from public.memories m where m.space_id = :'s1')::bigint, 0::bigint, '추억이 삭제된다');
 select tests_support.eq(
-  (select count(*) from public.memory_photos)::bigint, 0::bigint, '사진 연결도 삭제된다');
+  (select count(*) from public.memory_photos p where p.space_id = :'s1')::bigint, 0::bigint, '사진 연결도 삭제된다');
 select tests_support.eq(
-  (select count(*) from public.assets a where a.state = 'deleting')::bigint, 4::bigint,
+  (select count(*) from public.assets a where a.space_id = :'s1' and a.state = 'deleting')::bigint, 4::bigint,
   '정리 대상 파일 4개(사진 3 + 이전 커버 1)');
 
--- 운영 정리 함수
+-- 운영 정리 함수: 이 픽스처 공간의 deleting 파일만 넘긴다.
 select tests_support.eq(
   (select app_private.purge_deleted_assets(
-     array(select a.id from public.assets a where a.state = 'deleting')))::integer,
+     array(select a.id from public.assets a where a.space_id = :'s1' and a.state = 'deleting')))::integer,
   4, '정리 함수가 메타데이터 4건을 제거한다');
+select tests_support.eq(
+  (select count(*) from public.assets a where a.space_id = :'s1' and a.state = 'deleting')::bigint, 0::bigint,
+  '픽스처 공간의 deleting 메타데이터가 모두 제거됐다');
 
 reset role;
 rollback;
