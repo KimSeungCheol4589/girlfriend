@@ -19,6 +19,9 @@
 | MEM-001 | 홈, 추억, 꾸미기 | 추억 실제 CRUD·사진 업로드·필터 연결, 충돌·실패 처리 | AUTH-001 통합 | integrated |
 | FOOD-001 | DB 담당 → 로컬 Claude | 맛집 목록·방문 상태·개인 후기, 권한·상태 전이 검증 | AUTH-001 통합 | integrated |
 | THEME-001 | 홈, 추억, 꾸미기 → 로컬 Claude | 테마·커버·홈 구성의 실제 공유 저장과 미리보기 | MEM-001 통합 | in_progress |
+| WISH-001 | DB 담당 → 로컬 Claude | 맛집 외 함께 하고 싶은 일 CRUD·분류·계획·완료·권한·충돌 처리 | FOOD-001 통합 | assigned |
+| CAL-001 | DB 담당 → 로컬 Claude | 개인·공동 일정 월/목록·등록·수정·완료 체크·소유권·충돌 처리 | WISH-001 | planned |
+| DATE-001 | 홈, 추억, 꾸미기 → 로컬 Claude | 일정·위시에서 사진 데이트 기록 작성, 기존 추억과 선택적 연결·탐색 | THEME-001, WISH-001, CAL-001 | planned |
 | QA-001 | 총괄, 통합 | 전체 연결·모바일·외부 계정 접근 차단·업로드·백업 복원 확인 | 기능 구현 완료 | planned |
 
 UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, 실제 구현과 코드 검토는 Claude Code CLI로 수행한다. 후속 작업은 의존성이 충족된 뒤 실제 결과에 맞춰 범위를 구체화한다. 앱 설정·lockfile은 UI-001에서만 생성하고 DB-001은 수정하지 않는다.
@@ -36,6 +39,15 @@ UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, �
 2026-09-23 업무 재개: FOOD-001 담당에는 고정 base/product SHA의 새 Claude 읽기 전용 독립 검토를, THEME-001 담당에는 529로 종료됐던 정확한 구현 Claude 세션의 재개를 배정했다. 두 담당 작업의 active 상태와 15분 총괄 자동화 재활성화를 확인했다. 실행 결과와 커밋 증거가 나오기 전에는 완료나 통합으로 취급하지 않는다.
 
 2026-09-23 FOOD-001 통합: 독립 검토 승인과 총괄 검증을 확인하고 제품·handoff를 dev `34a0a16`에 병합했다. 검토 조건대로 `docs/database/CONTRACTS.md` 4절에 확인형 삭제 RPC, 이전 삭제 RPC 권한 회수, 후기 변경 시 맛집 version 증가와 `restaurantVersion` 반환 계약을 반영했다. main은 변경하지 않았다.
+
+2026-09-23 범위 확장: 사용자 요청으로 맛집과 분리된 일반 위시리스트, 각자의 개인 일정과 공동 데이트 일정을 함께 보는 캘린더, 완료한 위시·일정을 사진 추억과 연결하는 데이트 기록을 MVP에 추가했다. DB 담당은 최신 dev의 새 Worktree에서 WISH-001을 먼저 구현하고, 통합 후 CAL-001을 이어서 맡는다. UI 담당은 진행 중인 THEME-001을 완료한 뒤 의존성이 모두 통합되면 DATE-001을 맡는다. 공통 내비게이션·홈 요약은 동시 수정하지 않고 후속 통합 단계에서 연결한다.
+
+### WISH-001·CAL-001·DATE-001 경계
+
+- WISH-001: `src/app/wishes/**`, `src/features/wishes/**`, 전용 migration·SQL·unit/E2E·handoff. 카테고리 place/activity/trip/shopping/other와 wish/planned/done 상태, 링크·메모·계획일, 두 구성원의 공유 편집·버전 충돌을 포함한다.
+- CAL-001: `src/app/calendar/**`, `src/features/calendar/**`, 전용 migration·SQL·unit/E2E·handoff. owner가 있는 개인 일정은 두 사람 모두 조회하되 소유자만 변경하고, owner가 없는 공동 데이트 일정은 두 사람 모두 변경·완료 체크한다. 외부 캘린더 동기화·알림은 제외한다.
+- DATE-001: 기존 `memories` 사진 파이프라인과 CRUD를 재사용해 완료 일정·위시에서 제목·날짜·장소를 미리 채우고 선택적 링크를 저장한다. 별도 사진 저장소를 만들지 않는다. 기존 추억은 링크 없이 계속 동작해야 한다.
+- 세 작업은 로컬 Claude 구현, 고정 base/head의 별도 새 Claude 읽기 전용 독립 검토, 합성 두 계정·외부 계정 권한 및 재로그인 지속성 검증 후에만 dev에 통합한다.
 
 ## 역할별 작업 공간
 

@@ -1,6 +1,6 @@
 # 기술 스택 제안
 
-작성일: 2026-09-19 · 대상: 두 사람이 사용하는 비공개 추억·맛집 홈페이지
+작성일: 2026-09-19 · 대상: 두 사람이 사용하는 비공개 추억·위시·일정 홈페이지
 
 ## 1. 추천 조합
 
@@ -16,7 +16,7 @@
 | 개발 언어 | TypeScript | 기록·맛집·테마 데이터의 타입을 일관되게 관리 |
 | 스타일 | Tailwind CSS + CSS 변수 | 반응형 화면과 테마 색상 구현 |
 | UI 구성 요소 | shadcn/ui 선택 도입 | 필요한 버튼·대화상자·폼을 프로젝트 스타일에 맞게 구성 |
-| 데이터베이스 | Supabase PostgreSQL | 공유 공간, 추억, 맛집, 사용자별 후기의 관계와 제약 관리 |
+| 데이터베이스 | Supabase PostgreSQL | 공유 공간, 추억, 맛집, 일반 위시, 개인·공동 일정과 사용자별 권한 관리 |
 | 인증 | Supabase Auth | 각자의 계정 로그인과 세션 관리 |
 | 사진 저장 | Supabase Storage | 사진 파일을 DB와 분리해 저장하고 접근 권한 적용 |
 | 입력 검증 | Zod | 제목·날짜·별점·지도 URL 등을 서버에서 검증 |
@@ -59,10 +59,13 @@ Next.js 앱 — Vercel
 | memory_photos | id, memory_id, object_path, sort_order, width, height | 사진 경로·순서·크기 |
 | restaurants | id, space_id, created_by, name, area, category, map_url, memo, status, visited_date, version | 가고 싶은 곳·방문 완료 관리 |
 | restaurant_reviews | id, restaurant_id, user_id, rating, comment | 맛집별·사용자별 후기 하나, 별점 1~5 |
+| wish_items | id, space_id, created_by, title, category, memo, link_url, status, planned_date, version | 맛집 외 함께 하고 싶은 일의 저장·계획·완료 상태 |
+| calendar_events | id, space_id, created_by, owner_id, kind, title, note, starts_at, ends_at, all_day, status, wish_item_id, version | 개인 일정과 공동 데이트 일정, 완료 체크 |
+| memory_links | memory_id, calendar_event_id, wish_item_id | 계획된 일정·위시와 실제 사진 추억의 선택적 연결 |
 
 `home_sections`는 허용된 섹션 키·순서·표시 여부만 저장하는 JSON으로 관리한다. 임의 HTML이나 스크립트를 저장하는 편집기는 도입하지 않는다. `tags`는 초기에는 문자열 배열로 시작하고 필요할 때 별도 테이블로 분리한다.
 
-주요 조회 인덱스는 `memories(space_id, memory_date)`, `restaurants(space_id, status)`에 둔다. 공간 구성원 최대 두 명 제한과 초대 수락은 DB 트랜잭션에서 처리해 동시 요청에도 정원을 넘기지 않게 한다.
+주요 조회 인덱스는 `memories(space_id, memory_date)`, `restaurants(space_id, status)`, `wish_items(space_id,status,created_at)`, `calendar_events(space_id,starts_at)`에 둔다. 공간 구성원 최대 두 명 제한과 초대 수락은 DB 트랜잭션에서 처리해 동시 요청에도 정원을 넘기지 않게 한다.
 
 ## 5. 비공개 공간과 데이터 보호
 

@@ -15,6 +15,9 @@
 | 사용자 | 이메일로 로그인하는 두 사람, 계정당 공유 공간 하나 |
 | 접근 | 앱 데이터와 사진은 비공개. GitHub 코드 저장소의 공개 여부와 별개 |
 | 공동 작업 | 두 사람 모두 추억·맛집·홈 설정 편집 가능, 개인 후기만 본인 편집 |
+| 위시 | 맛집 외 장소·활동·여행·쇼핑·기타를 공유 저장, 두 사람 모두 계획·완료 처리 가능 |
+| 일정 | 개인 일정은 둘 다 조회·본인만 수정, 공동 데이트 일정은 둘 다 수정·완료 가능 |
+| 데이트 기록 | 기존 추억에 위시·일정을 선택적으로 연결하고 사진·본문·장소를 실제 기록으로 보존 |
 | 저장 방식 | 서버 저장 후 화면 갱신, 실시간 공동 편집은 제외 |
 | 꾸미기 | 테마 3종, 포인트 색상, 커버, 섹션 순서·표시 여부, 추억 고정 |
 | 지도 | 외부 지도 링크 저장·열기, API 검색·자동 수집 제외 |
@@ -58,6 +61,8 @@ flowchart TD
     E --> F
     F --> G[추억 목록·작성·상세]
     F --> H[맛집 목록·등록·방문 체크]
+    F --> K[하고 싶은 일 위시리스트]
+    F --> L[커플 캘린더·일정 체크]
     F --> I[꾸미기·미리보기·저장]
     F --> J[프로필·공간 설정]
 ```
@@ -76,6 +81,9 @@ flowchart TD
 | `/restaurants` | 상태·지역·종류 필터, 이름 검색 | 결과 없음 |
 | `/restaurants/new` | 맛집 등록 | 입력 오류 |
 | `/restaurants/[id]` | 수정, 방문 체크, 각자의 후기 | 삭제된 항목, 버전 충돌 |
+| `/wishes` | 분류·상태 필터, 위시 등록·수정·완료, 일정 만들기 | 결과 없음, 버전 충돌 |
+| `/calendar` | 월·목록 보기, 개인·공동 일정 등록·수정·완료 | 겹친 일정, 권한 없음, 버전 충돌 |
+| `/calendar/[id]` | 일정 상세, 완료 체크, 데이트 기록 만들기 | 삭제된 일정, 상대 개인 일정 수정 금지 |
 | `/customize` | 테마·커버·섹션 미리보기 및 저장 | 저장 실패, 버전 충돌 |
 | `/settings` | 닉네임, 공간 이름·소개·시작일, 구성원, 초대 | 정원 충족, 입력 오류 |
 
@@ -137,11 +145,18 @@ erDiagram
     SPACES ||--o{ SPACE_INVITES : invites
     SPACES ||--o{ MEMORIES : contains
     SPACES ||--o{ RESTAURANTS : contains
+    SPACES ||--o{ WISH_ITEMS : contains
+    SPACES ||--o{ CALENDAR_EVENTS : schedules
     SPACES ||--o{ ASSETS : owns
     MEMORIES ||--o{ MEMORY_PHOTOS : attaches
     ASSETS ||--o| MEMORY_PHOTOS : represents
     RESTAURANTS ||--o{ RESTAURANT_REVIEWS : receives
     PROFILES ||--o{ RESTAURANT_REVIEWS : writes
+    PROFILES ||--o{ CALENDAR_EVENTS : owns
+    WISH_ITEMS ||--o{ CALENDAR_EVENTS : plans
+    MEMORIES ||--o| MEMORY_LINKS : realizes
+    CALENDAR_EVENTS ||--o| MEMORY_LINKS : records
+    WISH_ITEMS ||--o| MEMORY_LINKS : records
 ```
 
 DB 테이블명은 소문자 snake_case다. `id`는 UUID, 시각은 `timestamptz`, 달력 날짜는 `date`를 사용한다. 수정 가능한 엔티티에는 `created_at`, `updated_at`, `version integer NOT NULL DEFAULT 1`을 둔다. 버전은 서버가 증가시킨다.
@@ -160,6 +175,9 @@ DB 테이블명은 소문자 snake_case다. `id`는 UUID, 시각은 `timestamptz
 | `memory_photos` | `id`, `memory_id`, `asset_id uuid`, `sort_order int` | asset_id UNIQUE, `(memory_id, sort_order)` UNIQUE, 순서 0~9 |
 | `restaurants` | `id`, `space_id`, `created_by uuid`, `name text`, `area text`, `category text`, `map_url text nullable`, `memo text`, `status text`, `visited_date date nullable`, `version` | 상태 wishlist/visited, 이름 1~100자, 메모 2,000자 이하 |
 | `restaurant_reviews` | `id`, `restaurant_id`, `user_id uuid`, `rating smallint`, `comment text`, `version` | `(restaurant_id,user_id)` UNIQUE, 별점 정수 1~5, 후기 500자 이하 |
+| `wish_items` | `id`, `space_id`, `created_by uuid`, `title text`, `category text`, `memo text`, `link_url text nullable`, `status text`, `planned_date date nullable`, `version` | 분류 place/activity/trip/shopping/other, 상태 wish/planned/done, 제목 1~100자 |
+| `calendar_events` | `id`, `space_id`, `created_by uuid`, `owner_id uuid nullable`, `kind text`, `title text`, `note text`, `starts_at timestamptz`, `ends_at timestamptz nullable`, `all_day boolean`, `status text`, `wish_item_id uuid nullable`, `version` | kind personal/date, owner null이면 공동 일정, 상태 scheduled/done/cancelled, 종료는 시작 이후 |
+| `memory_links` | `memory_id uuid`, `calendar_event_id uuid nullable`, `wish_item_id uuid nullable` | memory_id PK, 같은 공간의 일정·위시만 연결, 둘 중 하나 이상 필요 |
 | `mutation_requests` | `user_id`, `request_id uuid`, `operation text`, `payload_hash text`, `result jsonb`, `created_at` | `(user_id,request_id)` PK, 중복 생성·최종 저장 재시도 결과 보관 |
 
 `assets`와 `mutation_requests`는 기술 스택 초안에서 추가한 구현용 테이블이다. 프로필 사진은 MVP에서 이니셜로 대신한다. 커버는 `cover_asset_id`를 참조하며 `cover_path`와 중복 저장하지 않는다.
@@ -174,6 +192,10 @@ DB 테이블명은 소문자 snake_case다. `id`는 UUID, 시각은 `timestamptz
 - 맛집 상태가 visited면 방문일 필수, wishlist면 방문일은 NULL이다. 방문일은 한국 기준 오늘 이후를 허용하지 않는다.
 - visited에서 wishlist로 되돌릴 때 기존 후기가 있으면 삭제 여부를 확인하고, 확인된 요청만 후기 삭제와 상태 변경을 한 트랜잭션으로 처리한다.
 - 후기 등록·수정도 맛집 행을 잠그고 visited 상태를 확인한다. 상태 되돌리기와 동시에 실행돼도 후기가 남지 않게 한다.
+- 위시는 `wish → planned → done`을 기본 흐름으로 사용하며, 완료 후에도 기록을 삭제하지 않는다. 일정 연결·완료와 경쟁하면 행 잠금과 version으로 충돌을 알린다.
+- 개인 일정은 `owner_id`가 구성원 ID이고 소유자만 변경한다. 공동 데이트 일정은 `owner_id = null`이며 두 구성원 모두 변경할 수 있다.
+- 일정 완료 체크는 삭제와 구분한다. 완료 일정은 데이트 기록 작성 대상으로 남고, 연결된 추억을 삭제해도 일정 자체는 유지한다.
+- `memory_links`는 같은 공간 관계만 허용하며 위시·일정과 추억의 날짜가 달라도 강제로 수정하지 않고 사용자에게 확인만 표시한다.
 - 본문은 일반 텍스트로 렌더링하며 임의 HTML을 해석하지 않는다.
 - 인덱스: 추억 `(space_id,memory_date DESC,id DESC)`, 맛집 `(space_id,status,created_at DESC,id DESC)`, 파일 `(state,expires_at)`, 초대 `token_hash`.
 
@@ -186,6 +208,10 @@ DB 테이블명은 소문자 snake_case다. `id`는 UUID, 시각은 `timestamptz
 | 프로필 조회 | 거부 | 본인·상대방만 | 수정은 본인만 |
 | 개인 후기 조회 | 거부 | 허용 | 생성·수정·삭제는 본인만 |
 | 맛집 삭제·방문 취소 | 거부 | 허용 | 연결된 후기 제거를 명시적으로 확인 |
+| 위시 조회·변경 | 거부 | 허용 | 같은 공간, version 일치 |
+| 개인 일정 조회 | 거부 | 허용 | 같은 공간의 두 구성원 모두 조회 |
+| 개인 일정 변경 | 거부 | 소유자만 | owner_id가 현재 사용자, version 일치 |
+| 공동 데이트 일정 변경 | 거부 | 허용 | owner_id null, version 일치 |
 | 구성원 직접 추가·수정 | 거부 | 거부 | 검증된 생성·초대 DB 함수로만 처리 |
 | 사진 다운로드 | 거부 | 허용 | ready 상태이며 연결된 활성 기록·커버 확인 |
 | 대기 중 파일 | 거부 | 업로더만 | 다른 구성원에게 미저장 사진 노출 금지 |
@@ -214,6 +240,11 @@ RLS와 SQL 권한은 서로 다른 검사이므로 둘 다 정의해야 한다. 
 | `setRestaurantStatus` | id, 상태, 방문일, 후기 삭제 확인, expectedVersion, requestId | 방문 상태 변경 |
 | `saveReview` / `deleteReview` | 맛집 ID, 후기·별점 또는 후기 ID, expectedVersion, requestId | 본인 후기 저장·삭제 |
 | `deleteRestaurant` | id, expectedVersion, requestId | 맛집과 연결 후기 삭제 |
+| `saveWish` / `deleteWish` | id(수정 시), 제목·분류·메모·링크, expectedVersion, requestId | 일반 위시 생성·수정·삭제 |
+| `setWishStatus` | id, 상태·계획일, expectedVersion, requestId | 하고 싶음·계획됨·완료 전환 |
+| `saveCalendarEvent` / `deleteCalendarEvent` | id(수정 시), 개인/공동·시간·메모·위시, expectedVersion, requestId | 일정 생성·수정·삭제와 소유권 확인 |
+| `setCalendarEventStatus` | id, scheduled/done/cancelled, expectedVersion, requestId | 일정 완료 체크·취소 |
+| `linkMemoryPlan` | memoryId, eventId?, wishId?, expectedVersion, requestId | 사진 추억을 완료 일정·위시와 연결 |
 | `saveCustomization` | 테마·커버·섹션, expectedVersion, requestId | 공유 테마 저장, 이전 커버 정리 |
 | `updateProfile` / `updateSpace` | 허용 설정 필드, expectedVersion, requestId | 본인 프로필 또는 공유 정보 변경 |
 
