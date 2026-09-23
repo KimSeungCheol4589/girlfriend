@@ -138,7 +138,7 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
     const asset = await prepareAndUpload(tokenA, bytes, 'image/webp');
     const before = await objectHash(asset);
 
-    expect(await finalizeOwnedMemoryPhoto(depsA, asset.assetId)).toEqual({ ok: true, data: { assetId: asset.assetId } });
+    expect(await finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory')).toEqual({ ok: true, data: { assetId: asset.assetId } });
     expect(await row(asset.assetId)).toMatchObject({ state: 'ready', bytes: bytes.byteLength, width: 320, height: 200 });
     expect(await objectHash(asset)).toBe(before);
     expect(before).toBe(sha(bytes));
@@ -148,11 +148,11 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
     const bytes = await webp(300, 300, 2);
     const asset = await prepareAndUpload(tokenA, bytes, 'image/webp');
 
-    const results = await Promise.all([1, 2, 3].map(() => finalizeOwnedMemoryPhoto(depsA, asset.assetId)));
+    const results = await Promise.all([1, 2, 3].map(() => finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory')));
     for (const result of results) {
       expect(result.ok || result.code === 'RETRYABLE_ERROR').toBe(true);
     }
-    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId)).ok).toBe(true);
+    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory')).ok).toBe(true);
     expect(await row(asset.assetId)).toMatchObject({ state: 'ready', bytes: bytes.byteLength });
     expect(await objectHash(asset)).toBe(sha(bytes));
   });
@@ -160,10 +160,10 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
   it('확정 응답을 잃고 다시 불러도(이미 ready) 아무것도 바꾸지 않는다', async () => {
     const bytes = await webp(200, 100, 3);
     const asset = await prepareAndUpload(tokenA, bytes, 'image/webp');
-    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId)).ok).toBe(true);
+    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory')).ok).toBe(true);
     const first = await row(asset.assetId);
 
-    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId)).ok).toBe(true);
+    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory')).ok).toBe(true);
     expect(await row(asset.assetId)).toEqual(first);
     expect(await objectHash(asset)).toBe(sha(bytes));
   });
@@ -186,13 +186,13 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
       },
     });
 
-    const interrupted = await finalizeOwnedMemoryPhoto({ ...depsA, service: flaky }, asset.assetId);
+    const interrupted = await finalizeOwnedMemoryPhoto({ ...depsA, service: flaky }, asset.assetId, 'memory');
     expect(interrupted.ok).toBe(false);
     if (!interrupted.ok) expect(interrupted.code).toBe('RETRYABLE_ERROR');
     expect((await row(asset.assetId))?.state).toBe('pending');
     expect(await objectHash(asset)).toBe(sha(bytes));
 
-    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId)).ok).toBe(true);
+    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory')).ok).toBe(true);
     expect(await objectHash(asset)).toBe(sha(bytes));
   });
 
@@ -203,7 +203,7 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
     expect(await storageUpload(live, tokenA, BUCKET, asset.objectPath, other, 'image/webp')).not.toBe(200);
     expect(await storageUpload(live, tokenA, BUCKET, asset.objectPath, other, 'image/webp', true)).not.toBe(200);
 
-    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId)).ok).toBe(true);
+    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory')).ok).toBe(true);
     expect(await objectHash(asset)).toBe(sha(bytes));
   });
 
@@ -211,7 +211,7 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
     const bytes = await webp(100, 80, 6);
     const asset = await prepare(tokenA, 'image/webp', bytes.byteLength);
 
-    const early = await finalizeOwnedMemoryPhoto(depsA, asset.assetId);
+    const early = await finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory');
     expect(early.ok).toBe(false);
     if (!early.ok) {
       expect(early.code).toBe('RETRYABLE_ERROR');
@@ -220,7 +220,7 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
     expect((await row(asset.assetId))?.state).toBe('pending');
 
     expect(await storageUpload(live, tokenA, BUCKET, asset.objectPath, bytes, 'image/webp')).toBe(200);
-    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId)).ok).toBe(true);
+    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory')).ok).toBe(true);
   });
 
   it('확정과 취소가 동시에 와도 객체 바이트는 바뀌지 않고 상태는 ready 또는 deleting 중 하나다', async () => {
@@ -228,7 +228,7 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
     const asset = await prepareAndUpload(tokenA, bytes, 'image/webp');
 
     await Promise.all([
-      finalizeOwnedMemoryPhoto(depsA, asset.assetId),
+      finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory'),
       rpc(live, tokenA, 'discard_upload', { p_asset_id: asset.assetId, p_request_id: randomUUID() }),
     ]);
 
@@ -238,7 +238,7 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
     // 남아 있다면 원래 바이트 그대로다(정리로 지워졌을 수는 있다).
     expect(hash === null || hash === sha(bytes)).toBe(true);
     if (state === 'deleting') {
-      const after = await finalizeOwnedMemoryPhoto(depsA, asset.assetId);
+      const after = await finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory');
       expect(after.ok).toBe(false);
       expect((await row(asset.assetId))?.state).toBe('deleting');
     }
@@ -247,7 +247,7 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
   it('기록에 붙은 사진은 확정을 다시 불러도, 사용자가 덮어쓰려 해도 바뀌지 않는다', async () => {
     const bytes = await webp(180, 120, 8);
     const asset = await prepareAndUpload(tokenA, bytes, 'image/webp');
-    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId)).ok).toBe(true);
+    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory')).ok).toBe(true);
 
     const saved = await rpc(live, tokenA, 'save_memory', {
       p_memory_id: null,
@@ -263,7 +263,7 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
     });
     expect(saved.status).toBe(200);
 
-    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId)).ok).toBe(true);
+    expect((await finalizeOwnedMemoryPhoto(depsA, asset.assetId, 'memory')).ok).toBe(true);
     expect(await storageUpload(live, tokenA, BUCKET, asset.objectPath, await webp(180, 120, 77), 'image/webp', true)).not.toBe(200);
     expect(await objectHash(asset)).toBe(sha(bytes));
   });
@@ -273,7 +273,7 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
       await sharp({ create: { width: 200, height: 100, channels: 3, background: '#336699' } }).jpeg().toBuffer(),
     );
     const exifAsset = await prepareAndUpload(tokenA, jpeg, 'image/jpeg');
-    const exifResult = await finalizeOwnedMemoryPhoto(depsA, exifAsset.assetId);
+    const exifResult = await finalizeOwnedMemoryPhoto(depsA, exifAsset.assetId, 'memory');
     expect(exifResult.ok).toBe(false);
     if (!exifResult.ok) expect(exifResult.code).toBe('UPLOAD_FAILED');
     expect((await row(exifAsset.assetId))?.state).toBe('deleting');
@@ -281,7 +281,7 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
 
     const wide = await sharp({ create: { width: 3000, height: 100, channels: 3, background: '#000000' } }).png().toBuffer();
     const wideAsset = await prepareAndUpload(tokenA, wide, 'image/png');
-    const wideResult = await finalizeOwnedMemoryPhoto(depsA, wideAsset.assetId);
+    const wideResult = await finalizeOwnedMemoryPhoto(depsA, wideAsset.assetId, 'memory');
     expect(wideResult.ok).toBe(false);
     expect((await row(wideAsset.assetId))?.state).toBe('deleting');
   });
@@ -290,7 +290,7 @@ describe.skipIf(!ready)('확정 프로토콜 — 읽기 전용 검증, 객체 �
     const bytes = await webp(90, 90, 9);
     const asset = await prepareAndUpload(tokenA, bytes, 'image/webp');
 
-    const result = await finalizeOwnedMemoryPhoto(depsB, asset.assetId);
+    const result = await finalizeOwnedMemoryPhoto(depsB, asset.assetId, 'memory');
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe('NOT_FOUND');
     expect((await row(asset.assetId))?.state).toBe('pending');

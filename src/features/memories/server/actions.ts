@@ -282,6 +282,8 @@ export async function finalizeMemoryPhotoAction(
       verify,
     },
     parsed.data.assetId,
+    // 용도는 항상 명시한다. 추억 화면은 `memory` 파일만 확정한다(커버 파일은 여기서 확정되지 않는다).
+    'memory',
   );
 }
 
