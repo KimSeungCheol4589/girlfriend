@@ -171,6 +171,41 @@ test('화면: 상대가 먼저 고치면 덮어쓰지 않고 입력을 유지한
   }
 });
 
+test('화면: 저장 직후 곧바로 다시 상태를 바꿔도 자기 변경을 충돌로 오인하지 않는다', async ({ page }) => {
+  await login(page, accounts.a);
+  const title = uniqueTitle('연속 전환');
+  const id = await createWishViaUi(page, { title, category: 'place' });
+  const api = await userClient(accounts.a);
+
+  /**
+   * 재현하려는 타이밍(독립 검토 P2)
+   *
+   * 저장에 성공하면 성공 안내는 **서버 응답 직후** 뜨지만, 서버가 다시 그린 결과(version prop)는
+   * 그보다 늦게 도착한다. 그 사이에 다음 전환을 누르면 낡은 version을 expectedVersion으로 보내게 되어,
+   * **자기 변경**을 상대방이 먼저 바꾼 충돌로 오인했다.
+   *
+   * 그래서 "서버 상세가 다시 그려지기를 기다리지 않고" 곧바로 두 번째 전환을 누른다.
+   */
+  await page.getByRole('button', { name: '계획했어요로 바꾸기' }).click();
+  await expect(page.getByRole('status')).toContainText('계획했어요로 저장했어요');
+
+  await page.getByRole('button', { name: '해냈어요로 바꾸기' }).click();
+
+  // 두 번째 전환도 성공해야 한다. 먼저 성공을 확인해야 아래 "충돌 없음"이 의미 있는 단언이 된다
+  // (클릭 직후 곧바로 부재를 보면 요청이 끝나기 전이라 언제나 통과한다).
+  await expect(page.getByRole('status')).toContainText('해낸 일로 저장했어요');
+  // 상대방은 아무것도 바꾸지 않았으므로 충돌 안내가 뜨면 안 된다.
+  await expect(page.getByText(/상대방이 먼저 바꾼 내용/)).toHaveCount(0);
+
+  // 두 번의 저장이 모두 반영돼야 한다(생성 1 → 계획 2 → 완료 3).
+  await expect
+    .poll(async () => {
+      const row = await apiWish(api, id);
+      return { status: row?.status, version: row?.version };
+    })
+    .toEqual({ status: 'done', version: 3 });
+});
+
 test('화면: 삭제 확인 뒤 상대가 바꾸면 아무것도 지우지 않는다', async ({ browser }) => {
   const a = await openAs(browser, accounts.a);
   const b = await openAs(browser, accounts.b);

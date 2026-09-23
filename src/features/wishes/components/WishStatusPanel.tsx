@@ -46,25 +46,41 @@ export function WishStatusPanel({
   const hydrated = useHydrated();
 
   /**
-   * 입력칸과 서버 값 맞추기.
+   * 서버 상태 따라가기.
    *
-   * 저장에 성공하면 서버가 다시 그린 결과가 **조금 뒤에** 도착한다. 그 사이 사용자가 새 날짜를
-   * 입력하면 늦게 도착한 값이 그 입력을 덮어써 버린다(저장 직후 날짜를 다시 고칠 때 실제로 겪는다).
+   * 저장에 성공하면 서버가 다시 그린 결과(prop)는 **응답보다 조금 뒤에** 도착한다.
+   * 그래서 prop만 믿으면 두 가지 문제가 생긴다.
    *
-   * 그래서 "prop이 실제로 바뀌었을 때"만 맞추고, 사용자가 손댄 뒤에는 덮어쓰지 않는다.
-   *   - `propSnapshot`: 직전에 본 prop. 이것과 달라졌을 때만 서버가 바뀐 것이다.
-   *   - `serverDate`: 서버가 가진 값(우리가 아는 한). 저장 성공 응답으로도 갱신한다.
-   *   - `dirtyRef`: 마지막 저장 뒤 사용자가 입력을 고쳤는지. 고쳤으면 서버 값으로 되돌리지 않는다.
+   *   1. 계획일: 그 사이 사용자가 새 날짜를 입력하면 늦게 도착한 값이 입력을 덮어쓴다.
+   *   2. 버전: 그 사이 다음 전환을 누르면 낡은 `version`을 expectedVersion으로 보내게 되어,
+   *      **자기 변경**을 상대방이 먼저 바꾼 충돌로 오인한다(독립 검토 P2).
+   *
+   * 그래서 "서버가 가진 값"을 따로 들고 다닌다.
+   *   - `propSnapshot`/`versionSnapshot`: 직전에 본 prop. 이것과 달라졌을 때만 서버가 바뀐 것이다.
+   *   - `serverDate`/`serverVersion`: 서버가 가진 값(우리가 아는 한). **저장 성공 응답으로 즉시 갱신**하고,
+   *     실제 prop이 바뀌면 그때도 맞춘다(사용자가 새로 고쳤거나 우리 저장이 반영된 경우).
+   *   - `dirtyRef`: 마지막 저장 뒤 사용자가 날짜를 고쳤는지. 고쳤으면 서버 값으로 되돌리지 않는다.
    *     (상대방이 바꾼 값과 충돌하면 저장할 때 CONFLICT로 분명히 알려 준다.)
+   *
+   * prop은 이 클라이언트의 저장이 만든 재검증이나 사용자가 부른 새로 고침으로만 바뀐다(서버가 미는 경로가
+   * 없다). 그래서 prop 변화를 그대로 받아들여도 상대방의 변경을 모르고 덮어쓰는 일은 생기지 않는다.
    */
   const [serverDate, setServerDate] = useState(plannedDate);
   const [propSnapshot, setPropSnapshot] = useState(plannedDate);
+  const [serverVersion, setServerVersion] = useState(version);
+  const [versionSnapshot, setVersionSnapshot] = useState(version);
   const dirtyRef = useRef(false);
 
   if (propSnapshot !== plannedDate) {
     setPropSnapshot(plannedDate);
     setServerDate(plannedDate);
     if (!dirtyRef.current) setDate(plannedDate ?? '');
+  }
+
+  // 계획일과 따로 본다. 날짜가 그대로여도 상태만 바뀌면 버전은 오른다.
+  if (versionSnapshot !== version) {
+    setVersionSnapshot(version);
+    setServerVersion(version);
   }
 
   async function submit(next: WishStatus) {
@@ -91,15 +107,17 @@ export function WishStatusPanel({
       wishId,
       status: next,
       plannedDate: nextDate,
-      expectedVersion: version,
+      // prop이 아니라 우리가 아는 서버 버전을 보낸다. 방금 저장한 내 변경을 충돌로 오인하지 않는다.
+      expectedVersion: serverVersion,
     });
     if (result === null) return;
 
     if (result.ok) {
       const saved = result.data.plannedDate;
-      // 저장이 끝났으므로 사용자의 "고친 상태"를 지우고, 서버가 확정한 값을 그대로 보여 준다.
+      // 저장이 끝났으므로 사용자의 "고친 상태"를 지우고, 서버가 확정한 값·버전을 그대로 반영한다.
       dirtyRef.current = false;
       setServerDate(saved);
+      setServerVersion(result.data.version);
       setDate(saved ?? '');
       setNotice({
         tone: 'success',
