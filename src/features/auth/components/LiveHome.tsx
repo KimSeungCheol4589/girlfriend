@@ -8,17 +8,20 @@ import type { MemberContext } from '../guards';
 /**
  * 로그인한 두 사람의 홈.
  *
- * 이번 작업(AUTH-001)의 범위는 로그인·공간·초대까지다. 추억·맛집·꾸미기의 실제 저장은
- * 아직 없으므로 **예시 데이터를 대신 보여 주지 않고** 준비 중임을 분명히 적는다.
+ * 아직 실제 저장이 없는 기능은 **예시 데이터를 대신 보여 주지 않고** 준비 중임을 분명히 적는다.
  *
- * `memorySummary`: 추억 요약 자리(MEM-001). 주어지면 추억은 준비 중 목록에서 뺀다.
+ * `memorySummary`: 홈 섹션 자리(MEM-001 추억 요약 + THEME-001의 순서·표시 설정).
+ *   주어지면 추억은 준비 중 목록에서 뺀다.
+ * `cover`: 저장된 커버 사진 자리(THEME-001). 없으면 테마별 합성 배경만 보여 준다.
  */
 export function LiveHome({
   context,
   memorySummary,
+  cover,
 }: {
   context: MemberContext;
   memorySummary?: ReactNode;
+  cover?: ReactNode;
 }) {
   const { space, members, profile } = context;
   const dayCount = daysTogether(space.relationshipStartDate);
@@ -27,16 +30,18 @@ export function LiveHome({
     <div className="space-y-6">
       <section className="overflow-hidden rounded-card border border-border shadow-card">
         <div
-          className="flex min-h-[168px] flex-col justify-end px-5 py-6 sm:min-h-[220px] sm:px-8"
+          className="relative flex min-h-[168px] flex-col justify-end px-5 py-6 sm:min-h-[220px] sm:px-8"
           style={{ backgroundImage: 'var(--cover-gradient)' }}
         >
-          <h1 className="text-2xl font-bold tracking-tight text-text sm:text-3xl">{space.name}</h1>
+          {/* 저장된 커버가 있으면 배경 위에 덮는다. 없으면 테마 배경만 보인다. */}
+          {cover ?? null}
+          <h1 className="relative text-2xl font-bold tracking-tight text-text sm:text-3xl">{space.name}</h1>
           {space.introduction ? (
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-text/80">
+            <p className="relative mt-2 max-w-xl text-sm leading-relaxed text-text/80">
               {space.introduction}
             </p>
           ) : null}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="relative mt-3 flex flex-wrap items-center gap-2">
             {dayCount.status === 'ok' ? (
               <span className="chip bg-surface text-text">
                 함께한 지 {dayCount.days.toLocaleString('ko-KR')}일
@@ -89,12 +94,12 @@ export function LiveHome({
         <h2 className="mt-3 text-sm font-bold text-text">아직 만들지 않은 기능</h2>
         {memorySummary ? (
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            추억은 실제로 저장됩니다. 맛집과 꾸미기의 실제 저장은 다음 작업에서 붙이며, 그 전까지 예시
-            데이터를 실제 기록처럼 보여 주지 않습니다.
+            추억과 꾸미기 설정(테마·커버·홈 섹션)은 실제로 저장됩니다. 맛집의 실제 저장은 다음 작업에서
+            붙이며, 그 전까지 예시 데이터를 실제 기록처럼 보여 주지 않습니다.
           </p>
         ) : (
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            로그인과 공간·초대까지 연결했습니다. 추억 기록, 사진 업로드, 맛집, 꾸미기의 실제 저장은
+            로그인과 공간·초대까지 연결했습니다. 추억 기록, 사진 업로드, 맛집의 실제 저장은
             다음 작업에서 붙입니다. 지금은 저장할 수 있는 화면이 없으므로 예시 데이터를 실제 기록처럼
             보여 주지 않습니다.
           </p>
@@ -103,7 +108,6 @@ export function LiveHome({
           {[
             ...(memorySummary ? [] : ['추억 작성·목록·상세 (MEM-001)']),
             '맛집 목록과 두 사람의 후기 (FOOD-001)',
-            '테마·커버·홈 구성 저장 (THEME-001)',
           ].map((item) => (
             <li key={item} className="flex gap-2 text-sm leading-relaxed text-muted">
               <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
