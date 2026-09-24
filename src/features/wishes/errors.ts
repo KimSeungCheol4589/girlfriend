@@ -43,6 +43,13 @@ const DETAILED_MESSAGES: Record<string, string> = {
     '상대방이 먼저 바꾼 내용이 있어 저장하지 않았어요. 입력한 내용은 그대로 두었으니 최신 내용을 확인한 뒤 다시 저장해 주세요.',
   'CONFLICT:requestId:payload_mismatch':
     '같은 요청 번호로 다른 내용을 보냈어요. 화면을 새로 불러온 뒤 다시 시도해 주세요.',
+  /*
+   * CAL-001에서 정한 삭제 의미. 연결된 캘린더 일정이 있으면 위시를 지우지 않고 거부한다.
+   * 이 문장이 없으면 일반 CONFLICT 안내("최신 내용을 불러온 뒤 다시 시도")가 나가는데, 다시 시도해도
+   * 결과가 같아 사용자가 원인을 모른 채 반복하게 된다.
+   */
+  'CONFLICT:wishId:has_calendar_events':
+    '이 위시로 만든 캘린더 일정이 있어 지울 수 없어요. 캘린더에서 연결된 일정을 먼저 지우거나 일정의 위시 연결을 해제한 뒤 다시 시도해 주세요.',
   'RETRYABLE_ERROR:requestId:in_progress':
     '같은 요청을 처리하는 중이에요. 잠시 후 같은 내용으로 다시 시도해 주세요.',
   'NOT_FOUND:space:not_member': '공간에 참여한 계정만 위시를 다룰 수 있어요.',

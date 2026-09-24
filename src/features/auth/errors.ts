@@ -58,6 +58,10 @@ const SQLSTATE_TO_CODE: Record<string, AuthErrorCode> = {
   '42501': 'NOT_FOUND',
   // 계약에 없는 제약 위반. 코드만 남기고 충돌로 다룬다.
   '23505': 'CONFLICT',
+  // 외래 키 위반(CAL-001). 연결된 자식 행이 있어 **확정적으로 거부**된 요청이다.
+  // UNKNOWN으로 두면 화면이 "같은 내용으로 다시 시도하면 된다"고 잘못 안내해 무한 재시도가 된다.
+  // 앱 경로에서는 RPC가 먼저 GF404/GF409로 막으므로 이 매핑은 마지막 방어선이다.
+  '23503': 'CONFLICT',
   // PostgREST: JWT 문제
   PGRST301: 'UNAUTHENTICATED',
   PGRST302: 'UNAUTHENTICATED',
@@ -172,6 +176,8 @@ const DETAILED_MESSAGES: Record<string, string> = {
     '상대방이 먼저 저장한 내용이 있습니다. 화면을 새로 불러온 뒤 다시 저장해 주세요.',
   'CONFLICT:requestId:payload_mismatch':
     '같은 요청 번호로 다른 내용을 보냈습니다. 화면을 새로 불러온 뒤 다시 저장해 주세요.',
+  'CONFLICT:wishId:has_calendar_events':
+    '이 위시로 만든 캘린더 일정이 있어 지울 수 없습니다. 캘린더에서 연결된 일정을 먼저 지우거나 연결을 해제한 뒤 다시 시도해 주세요.',
   'INVITE_INVALID:token:expired':
     '초대 링크가 만료됐습니다. 상대방에게 새 초대 링크를 만들어 달라고 요청해 주세요.',
   'INVITE_INVALID:email:unverified':
