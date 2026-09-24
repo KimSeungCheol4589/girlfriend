@@ -22,7 +22,7 @@ import {
  * - 상태는 wish → planned → done이 기본 흐름이고, 되돌리면 계획한 날짜가 지워진다.
  * - 계획일은 선택이며 **미래 날짜가 정상**이다(맛집 방문일과 다른 점).
  * - 사용자가 넣은 문자열은 텍스트로만 그려진다(스크립트로 실행되지 않는다).
- * - 캘린더 일정 만들기는 CAL-001 후속이며 저장 동작처럼 보이지 않는다.
+ * - 위시 상세에서 해당 위시를 연결한 캘린더 일정 만들기로 이동한다.
  */
 
 const accounts = loadWishAccounts();
@@ -131,17 +131,13 @@ test('상태 전이: 계획 → 완료 → 되돌리기에서 계획일이 함�
   await expect(page.getByLabel('계획한 날짜')).toHaveValue('');
 });
 
-test('일정 만들기는 CAL-001 후속이며 저장 버튼처럼 보이지 않는다', async ({ page }) => {
+test('위시에서 연결된 캘린더 일정을 만들 수 있다', async ({ page }) => {
   await login(page, accounts.a);
   const id = await createWishViaUi(page, { title: uniqueTitle('일정 안내') });
   await gotoDetail(page, id);
 
-  await expect(page.getByText(/캘린더 일정 만들기는 아직 없어요/)).toBeVisible();
-  await expect(page.getByText(/CAL-001/)).toBeVisible();
-  // 일정을 만드는 것처럼 보이는 버튼·링크가 없어야 한다.
-  await expect(page.getByRole('button', { name: /일정 만들기/ })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: /일정 만들기/ })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: /캘린더/ })).toHaveCount(0);
+  const createEvent = page.getByRole('link', { name: '이 위시로 일정 만들기' });
+  await expect(createEvent).toHaveAttribute('href', `/calendar/new?wishId=${id}`);
 });
 
 test('입력 오류는 필드에 표시되고 저장하지 않는다', async ({ page }) => {

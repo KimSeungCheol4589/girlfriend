@@ -17,6 +17,7 @@ export const ALLOWED_REDIRECT_ROOTS = [
   '/memories',
   '/restaurants',
   '/wishes',
+  '/calendar',
   '/customize',
   '/settings',
   '/onboarding',

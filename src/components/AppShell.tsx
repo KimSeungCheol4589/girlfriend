@@ -91,6 +91,17 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    path: '/calendar',
+    label: '일정',
+    icon: (
+      <svg {...iconProps}>
+        <rect x="3" y="5" width="18" height="16" rx="3" />
+        <path d="M7 3v4M17 3v4M3 10h18" />
+        <path d="M8 14h2M14 14h2M8 18h2M14 18h2" />
+      </svg>
+    ),
+  },
+  {
     path: '/customize',
     label: '꾸미기',
     icon: (

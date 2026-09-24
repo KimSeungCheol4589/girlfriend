@@ -239,10 +239,37 @@ DESIGN `saveMemory`. 본문과 사진 연결을 한 트랜잭션으로 저장한
 ### `delete_wish(p_wish_id uuid, p_expected_version integer, p_request_id uuid) → jsonb`
 
 - 행을 잠그고 현재 version을 확인한 뒤 삭제한다. 확인 화면을 연 뒤 다른 변경이 생기면 `GF409`로 거부한다.
+- 연결된 일정이 있으면 삭제하지 않고 `GF409 {"wishId":"has_calendar_events"}`를 반환한다. 위시 행 잠금과 일정의 FK 잠금으로 새 연결과 삭제를 직렬화한다.
 - 반환: `{"wishId"}`
 - 오류: `GF401`, `GF404`, `GF409`
 
-CAL-001에서 일정과 위시를 연결할 때는 삭제 의미를 먼저 정한다. FK 위반 `23503`을 그대로 `UNKNOWN`으로 처리하지 않고, 연결 해제·삭제 확인·삭제 거부 중 선택한 정책에 맞는 `CONFLICT` 응답과 안내를 제공해야 한다.
+### 4.2 커플 캘린더
+
+`calendar_events`는 본인 공간의 개인·공동 일정을 담는다. 두 구성원 모두 모든 일정을 조회하지만, 개인 일정은 소유자만 변경하고 공동 일정은 두 구성원 모두 변경한다. `authenticated`와 `service_role`에는 SELECT만 허용하며 모든 변경은 아래 RPC를 통한다.
+
+### `save_calendar_event(p_event_id uuid, p_kind text, p_title text, p_location text, p_note text, p_all_day boolean, p_start_date date, p_start_time time, p_end_date date, p_end_time time, p_wish_item_id uuid, p_expected_version integer, p_request_id uuid) → jsonb`
+
+- 생성은 `p_event_id = null`, `p_expected_version = 0`; 수정은 현재 version을 보낸다. 새 일정 상태는 `scheduled`다.
+- `kind`는 `personal | date`이며 생성 후 바꿀 수 없다. 개인 일정의 소유자는 만든 사람이고, 공동 일정의 소유자는 null이다.
+- 제목은 1~100자, 장소는 선택·100자 이하, 메모는 2,000자 이하다.
+- 날짜와 시각은 한국 시간으로 조립한다. 종일 일정은 시작·종료 시각을 받지 않고 종료일을 포함한다. 시간 일정은 시작 시각이 필수이고 종료는 시작보다 뒤여야 한다.
+- 위시 연결은 선택이며 같은 공간의 위시만 허용한다. `calendar_events_wish_same_space` 제약 위반만 `GF409 {"wishItemId":"gone"}`으로 바꾸고, 다른 FK 위반은 원래 `23503`을 유지한다.
+- 반환: `{"eventId","version","kind","ownerId","status","allDay","startsAt","endsAt","wishItemId"}`
+- 오류: `GF401`, `GF403`, `GF404`, `GF422`, `GF409`
+
+### `set_calendar_event_status(p_event_id uuid, p_status text, p_expected_version integer, p_request_id uuid) → jsonb`
+
+- 상태는 `scheduled | done | cancelled`다. 개인 일정은 소유자만, 공동 일정은 두 구성원 모두 변경한다.
+- 반환: `{"eventId","version","status"}`
+- 오류: `GF401`, `GF403`, `GF404`, `GF422`, `GF409`
+
+### `delete_calendar_event(p_event_id uuid, p_expected_version integer, p_request_id uuid) → jsonb`
+
+- 현재 version과 권한을 확인하고 일정만 삭제한다. 연결한 위시는 유지된다.
+- 반환: `{"eventId"}`
+- 오류: `GF401`, `GF403`, `GF404`, `GF409`
+
+조회는 `(space_id, starts_at, id)` 인덱스를 사용한다. 월 범위는 한국 시간 기준 이번 달 0시 이상, 다음 달 0시 미만과 겹치는 일정이며 최대 500건이다. 상한을 넘으면 화면에서 일부 결과임을 알린다.
 
 ---
 
@@ -285,6 +312,7 @@ CAL-001에서 일정과 위시를 연결할 때는 삭제 의미를 먼저 정�
 | `restaurants` | 본인 공간 | `(space_id, status, created_at desc, id desc)` |
 | `restaurant_reviews` | 본인 공간(두 사람 모두 조회) | `(restaurant_id)` |
 | `wish_items` | 본인 공간 | `(space_id, status, created_at desc, id desc)` |
+| `calendar_events` | 본인 공간의 모든 개인·공동 일정 | `(space_id, starts_at, id)`, 연결 위시는 `(wish_item_id) where not null` |
 | `assets` | 업로더 본인, 또는 `ready`이면서 실제로 기록·커버에 연결된 것 | `(space_id, purpose, state)` |
 | `space_invites`, `mutation_requests` | **조회 불가** | — |
 

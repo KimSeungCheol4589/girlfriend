@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useId, useRef, useState, useTransition } from 'react';
 
@@ -243,14 +244,15 @@ export function WishStatusPanel({
         <p className="field-hint">‘하고 싶어요’로 되돌리면 계획한 날짜가 지워져요.</p>
       </fieldset>
 
-      {/*
-        CAL-001 전까지는 캘린더 일정이 없다. 저장 동작처럼 보이는 버튼을 두지 않고 안내만 한다.
-        여기서 저장되는 것은 위시의 계획한 날짜뿐이다.
-      */}
-      <p className="mt-5 rounded-xl bg-surface-muted px-4 py-3 text-xs leading-relaxed text-muted">
-        캘린더 일정 만들기는 아직 없어요. 지금은 이 위시에 계획한 날짜만 저장돼요. 두 사람의 캘린더 연결은 다음 작업
-        (CAL-001)에서 만들어요.
-      </p>
+      <div className="mt-5 rounded-xl bg-surface-muted px-4 py-3 text-xs leading-relaxed text-muted">
+        <p>이 위시를 두 사람의 캘린더 일정으로 계획할 수 있어요.</p>
+        <Link
+          href={`/calendar/new?wishId=${encodeURIComponent(wishId)}`}
+          className="mt-2 inline-flex min-h-touch items-center font-semibold text-accent underline-offset-4 hover:underline"
+        >
+          이 위시로 일정 만들기
+        </Link>
+      </div>
     </section>
   );
 }

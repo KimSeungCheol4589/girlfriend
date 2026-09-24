@@ -176,7 +176,7 @@ DB 테이블명은 소문자 snake_case다. `id`는 UUID, 시각은 `timestamptz
 | `restaurants` | `id`, `space_id`, `created_by uuid`, `name text`, `area text`, `category text`, `map_url text nullable`, `memo text`, `status text`, `visited_date date nullable`, `version` | 상태 wishlist/visited, 이름 1~100자, 메모 2,000자 이하 |
 | `restaurant_reviews` | `id`, `restaurant_id`, `user_id uuid`, `rating smallint`, `comment text`, `version` | `(restaurant_id,user_id)` UNIQUE, 별점 정수 1~5, 후기 500자 이하 |
 | `wish_items` | `id`, `space_id`, `created_by uuid`, `title text`, `category text`, `memo text`, `link_url text nullable`, `status text`, `planned_date date nullable`, `version` | 분류 place/activity/trip/shopping/other, 상태 wish/planned/done, 제목 1~100자 |
-| `calendar_events` | `id`, `space_id`, `created_by uuid`, `owner_id uuid nullable`, `kind text`, `title text`, `note text`, `starts_at timestamptz`, `ends_at timestamptz nullable`, `all_day boolean`, `status text`, `wish_item_id uuid nullable`, `version` | kind personal/date, owner null이면 공동 일정, 상태 scheduled/done/cancelled, 종료는 시작 이후 |
+| `calendar_events` | `id`, `space_id`, `created_by uuid`, `owner_id uuid nullable`, `kind text`, `title text`, `location text nullable`, `note text`, `starts_at timestamptz`, `ends_at timestamptz nullable`, `all_day boolean`, `status text`, `wish_item_id uuid nullable`, `version` | kind personal/date, owner null이면 공동 일정, 장소는 100자 이하, 상태 scheduled/done/cancelled, 종료는 시작 이후 |
 | `memory_links` | `memory_id uuid`, `calendar_event_id uuid nullable`, `wish_item_id uuid nullable` | memory_id PK, 같은 공간의 일정·위시만 연결, 둘 중 하나 이상 필요 |
 | `mutation_requests` | `user_id`, `request_id uuid`, `operation text`, `payload_hash text`, `result jsonb`, `created_at` | `(user_id,request_id)` PK, 중복 생성·최종 저장 재시도 결과 보관 |
 
