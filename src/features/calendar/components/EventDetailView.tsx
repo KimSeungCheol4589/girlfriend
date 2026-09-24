@@ -82,7 +82,12 @@ export function EventDetailView({
 
         {event.canEdit ? (
           <div className="mt-6 flex flex-wrap items-start justify-between gap-3 border-t border-border pt-4">
-            <Link href={`/calendar/${event.id}/edit`} className="btn-secondary">
+            {/* 보고 있던 달·보기·필터를 수정 화면에도 넘긴다. 저장 뒤 상세로, 상세에서 캘린더로
+                돌아갈 때까지 같은 상태를 유지한다(독립 검토 P3-3). */}
+            <Link
+              href={`/calendar/${event.id}/edit?back=${encodeURIComponent(calendarHref)}`}
+              className="btn-secondary"
+            >
               내용 수정
             </Link>
             <DeleteEventButton

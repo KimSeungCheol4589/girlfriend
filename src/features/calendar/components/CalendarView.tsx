@@ -17,6 +17,7 @@ import {
 import {
   buildCalendarHref,
   hasActiveFilter,
+  isScopeActive,
   toggleScope,
   type CalendarFilters,
 } from '../filters';
@@ -148,10 +149,14 @@ export function CalendarView({
               key={scope}
               href={buildCalendarHref(toggleScope(filters, scope))}
               label={SCOPE_LABELS[scope]}
-              active={filters.scopes.includes(scope)}
+              // 고른 것이 없으면 셋 다 보여 주는 중이므로 셋 다 강조한다.
+              active={isScopeActive(filters, scope)}
             />
           ))}
         </div>
+        <p className="mt-2 text-xs leading-relaxed text-muted">
+          지금은 강조된 범위를 보여 줘요. 하나를 누르면 그 범위만 보고, 다시 누르면 전체로 돌아와요.
+        </p>
 
         <div className="mt-2 flex flex-wrap gap-2">
           <Pill

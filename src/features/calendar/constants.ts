@@ -78,6 +78,16 @@ export const STATUS_ACTION_LABELS: Record<EventStatus, string> = {
   cancelled: '취소로 바꾸기',
 };
 
+/**
+ * 지금 상태에서 고를 수 있는 다음 상태.
+ *
+ * 지금 상태 자신은 버튼으로 두지 않는다. 화면은 이 함수에 **서버가 가진 상태**를 넘긴다.
+ * "지금 상태: 완료"인데 "완료로 바꾸기" 버튼이 함께 보이는 자기모순을 막는 규칙이다(독립 검토 P3-5).
+ */
+export function nextStatusChoices(current: EventStatus): EventStatus[] {
+  return EVENT_STATUSES.filter((value) => value !== current);
+}
+
 export const DEFAULT_STATUS: EventStatus = 'scheduled';
 
 // ---------------------------------------------------------------------------

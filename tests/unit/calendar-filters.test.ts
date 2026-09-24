@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCalendarHref,
   hasActiveFilter,
+  isScopeActive,
   matchesScope,
   parseCalendarBackHref,
   parseCalendarFilters,
   toggleScope,
 } from '@/features/calendar/filters';
+
+import { CALENDAR_SCOPES } from '@/features/calendar/constants';
 
 const TODAY = '2026-09-23';
 
@@ -102,6 +105,71 @@ describe('hasActiveFilter / toggleScope', () => {
       filters = toggleScope(filters, scope);
     }
     expect(filters.scopes).toEqual([]);
+  });
+});
+
+/**
+ * 범위 칩의 강조 (독립 검토 P3-6 회귀).
+ *
+ * 세 칩을 모두 고르면 `toggleScope`가 `[]`("모두")로 정규화한다. 그때 강조가 전부 꺼지면
+ * 선택이 취소된 것처럼 보인다. "보이는 것"과 "강조"를 맞춘다.
+ */
+describe('isScopeActive', () => {
+  it('아무것도 고르지 않았으면 셋 다 강조한다(모두 보여 주는 중)', () => {
+    const filters = parse({});
+    expect(filters.scopes).toEqual([]);
+    for (const scope of CALENDAR_SCOPES) {
+      expect(isScopeActive(filters, scope), scope).toBe(true);
+    }
+  });
+
+  it('하나만 골랐으면 그것만 강조한다', () => {
+    const filters = parse({ scope: 'mine' });
+    expect(isScopeActive(filters, 'mine')).toBe(true);
+    expect(isScopeActive(filters, 'partner')).toBe(false);
+    expect(isScopeActive(filters, 'shared')).toBe(false);
+  });
+
+  it('두 개를 골랐으면 둘만 강조한다', () => {
+    const filters = parse({ scope: ['mine', 'shared'] });
+    expect(isScopeActive(filters, 'mine')).toBe(true);
+    expect(isScopeActive(filters, 'shared')).toBe(true);
+    expect(isScopeActive(filters, 'partner')).toBe(false);
+  });
+
+  it('세 개를 차례로 누르면 마지막에도 셋 다 강조로 남는다', () => {
+    let filters = parse({});
+    for (const scope of CALENDAR_SCOPES) {
+      filters = toggleScope(filters, scope);
+    }
+    // 정규화 결과는 "모두"이고, 강조는 꺼지지 않는다.
+    expect(filters.scopes).toEqual([]);
+    for (const scope of CALENDAR_SCOPES) {
+      expect(isScopeActive(filters, scope), scope).toBe(true);
+    }
+  });
+
+  it('URL로 세 개를 직접 넘겨도 셋 다 강조한다', () => {
+    const filters = parse({ scope: ['mine', 'partner', 'shared'] });
+    for (const scope of CALENDAR_SCOPES) {
+      expect(isScopeActive(filters, scope), scope).toBe(true);
+    }
+  });
+
+  it('강조와 실제로 보이는 일정이 어긋나지 않는다', () => {
+    const viewer = 'user-a';
+    const samples = [
+      { scope: 'mine' as const, event: { kind: 'personal', ownerId: viewer } },
+      { scope: 'partner' as const, event: { kind: 'personal', ownerId: 'user-b' } },
+      { scope: 'shared' as const, event: { kind: 'date', ownerId: null } },
+    ];
+    for (const filters of [parse({}), parse({ scope: 'mine' }), parse({ scope: ['mine', 'shared'] })]) {
+      for (const { scope, event } of samples) {
+        expect(matchesScope(filters, event, viewer), `${scope} / ${filters.scopes.join(',')}`).toBe(
+          isScopeActive(filters, scope),
+        );
+      }
+    }
   });
 });
 

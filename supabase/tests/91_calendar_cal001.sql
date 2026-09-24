@@ -553,5 +553,121 @@ select tests_support.expect_error(
   $q$select public.delete_calendar_event(gen_random_uuid(), 1, gen_random_uuid())$q$,
   '42501', '비로그인은 delete_calendar_event를 호출할 수 없다');
 
+-- ---------------------------------------------------------------------------
+-- 위시가 아닌 FK 위반은 "위시가 사라졌어요"로 바꾸지 않는다 (독립 검토 P3-4)
+-- ---------------------------------------------------------------------------
+-- save_calendar_event의 FK 핸들러가 위시 복합 FK일 때만 CONFLICT{"wishItemId":"gone"}을 쓰고,
+-- 다른 FK 위반은 원래 예외를 그대로 올려야 한다.
+--
+-- 실제 제품 스키마에서는 그 상황을 한 세션으로 만들 수 없다. `created_by`·`owner_id`가 가리키는
+-- 프로필은 `space_members`가 이미 보장하고, 공간·프로필 삭제 RPC도 없다. 그래서 이 트랜잭션 안에서만
+-- 사는 **검사용 FK를 하나 더 달아** 그 경로를 실제로 통과시킨다(롤백과 함께 사라진다).
+-- `not valid`로 달아 기존 행을 다시 검사하지 않게 한다(새 INSERT/UPDATE에는 그대로 적용된다).
+reset role;
+
+create table tests_support.allowed_locations (location text primary key);
+-- FK 검사는 참조되는 테이블을 읽는다. 검사용 테이블이므로 읽기를 열어 둔다(롤백과 함께 사라진다).
+grant select on table tests_support.allowed_locations to public;
+-- 허용 값은 소유자 권한으로 미리 넣는다(역할을 바꾼 뒤에는 이 테이블에 쓸 수 없다).
+insert into tests_support.allowed_locations (location) values ('있는 장소');
+alter table public.calendar_events
+  add constraint calendar_events_test_location_fk
+  foreign key (location) references tests_support.allowed_locations (location) not valid;
+
+select set_config('request.jwt.claims', tests_support.claims(:'ua'), true);
+select set_config('request.jwt.claim.sub', :'ua', true);
+set local role authenticated;
+
+do $do$
+declare
+  v_state text;
+begin
+  -- 허용 목록에 없는 장소 → calendar_events_test_location_fk 위반(위시 제약이 아니다).
+  v_state := tests_support.try_sqlstate(
+    $q$select public.save_calendar_event(null, 'date', 'FK 매핑', '없는 장소', '', false,
+             date '2026-11-07', time '10:00', null, null, null, 0, gen_random_uuid())$q$);
+  -- 고치기 전에는 GF409(위시가 사라졌어요)가 나왔다. 이제 원래 FK 위반이 그대로 올라온다.
+  perform tests_support.eq(v_state, '23503',
+    '위시가 아닌 FK 위반은 23503 그대로 올라온다(위시 안내로 바뀌지 않는다)');
+
+  -- 같은 함수가 허용된 장소로는 정상 동작한다(핸들러가 정상 경로를 막지 않는다).
+  v_state := tests_support.try_sqlstate(
+    $q$select public.save_calendar_event(null, 'date', 'FK 매핑 정상', '있는 장소', '', false,
+             date '2026-11-07', time '11:00', null, null, null, 0, gen_random_uuid())$q$);
+  perform tests_support.eq(v_state, null, '허용된 값이면 정상 저장된다');
+end;
+$do$;
+
+reset role;
+alter table public.calendar_events drop constraint calendar_events_test_location_fk;
+
+-- ---------------------------------------------------------------------------
+-- 공간 cascade 삭제 (설계 결정 6: 복합 FK가 `no action`이어야 통과한다, 독립 검토 P3-8)
+-- ---------------------------------------------------------------------------
+-- 공간을 지우면 위시와 일정이 함께 cascade로 사라진다. 복합 FK가 `restrict`였다면 즉시 검사 때문에
+-- 공간 삭제 자체가 실패한다. `no action`은 문장 끝에 검사하므로 둘이 함께 사라지는 경우를 통과시킨다.
+-- MVP에 공간 삭제 RPC가 없어 제품 경로로는 실행되지 않는 전제였다. 소유자 권한으로 직접 확인한다.
+\set ud 'c4444444-4444-4444-8444-444444444444'
+\set s3 'cccccca3-cccc-4ccc-8ccc-ccccccccccc3'
+
+select tests_support.make_user(:'ud', 'cal91-d@test.invalid');
+select tests_support.make_profile(:'ud', '디이');
+select tests_support.make_space(:'s3', :'ud', 'cascade 공간');
+
+do $do$
+declare
+  v_space uuid := 'cccccca3-cccc-4ccc-8ccc-ccccccccccc3';
+  v_user  uuid := 'c4444444-4444-4444-8444-444444444444';
+  v_wish  uuid;
+  v_date  uuid;
+  v_own   uuid;
+begin
+  insert into public.wish_items (space_id, created_by, title)
+  values (v_space, v_user, 'cascade 위시')
+  returning id into v_wish;
+
+  insert into public.calendar_events (
+    space_id, created_by, owner_id, kind, title, starts_at, ends_at, all_day, wish_item_id)
+  values (
+    v_space, v_user, null, 'date', 'cascade 공동 일정',
+    app_private.kst_moment(date '2026-11-07', time '10:00'), null, false, v_wish)
+  returning id into v_date;
+
+  insert into public.calendar_events (
+    space_id, created_by, owner_id, kind, title, starts_at, ends_at, all_day)
+  values (
+    v_space, v_user, v_user, 'personal', 'cascade 개인 일정',
+    app_private.kst_moment(date '2026-11-08', null),
+    app_private.kst_moment(date '2026-11-08', null), true)
+  returning id into v_own;
+
+  perform tests_support.eq(
+    (select count(*)::integer from public.calendar_events e where e.space_id = v_space),
+    2, 'cascade 확인용 일정 2건 준비');
+
+  -- 연결된 일정이 있는 위시는 직접 삭제도 FK가 막는다(RPC 검사와 별개인 마지막 방어선).
+  perform tests_support.expect_error(
+    format($q$delete from public.wish_items where id = %L$q$, v_wish),
+    '23503', '연결된 일정이 있는 위시는 직접 삭제도 FK가 막는다');
+
+  -- 공간 삭제는 위시·일정을 함께 지우며 성공해야 한다.
+  delete from public.spaces s where s.id = v_space;
+
+  perform tests_support.eq(
+    (select count(*)::integer from public.calendar_events e where e.space_id = v_space),
+    0, '공간을 지우면 일정도 함께 사라진다');
+  perform tests_support.eq(
+    (select count(*)::integer from public.wish_items w where w.space_id = v_space),
+    0, '공간을 지우면 위시도 함께 사라진다');
+  perform tests_support.eq(
+    (select count(*)::integer from public.spaces s where s.id = v_space),
+    0, '공간이 사라진다');
+end;
+$do$;
+
+-- 남은 한계: 위시 삭제와 일정 생성의 **동시** 직렬화(FOR UPDATE ↔ FOR KEY SHARE)는 한 세션으로
+-- 재현할 수 없다. 이 파일은 단일 세션 검증이며, 두 세션 동시성 시나리오는 미작성이다
+-- (`supabase/tests/concurrency`류의 별도 스크립트가 필요하다).
+
 reset role;
 rollback;

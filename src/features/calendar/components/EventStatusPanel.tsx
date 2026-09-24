@@ -5,7 +5,7 @@ import { useId, useRef, useState, useTransition } from 'react';
 
 import { setCalendarEventStatusAction } from '../actions';
 import {
-  EVENT_STATUSES,
+  nextStatusChoices,
   STATUS_ACTION_LABELS,
   STATUS_ICONS,
   STATUS_LABELS,
@@ -54,14 +54,25 @@ export function EventStatusPanel({
    * 누르면 낡은 `version`을 expectedVersion으로 보내 **자기 변경**을 상대방 충돌로 오인한다.
    * 그래서 "서버가 가진 버전"을 따로 들고 다니고, 저장 성공 응답으로 즉시 갱신한다.
    *
+   * 상태(`status`)도 같이 들고 다닌다. 버전만 갱신하면 그 짧은 창에서 "완료로 표시했어요" 알림과
+   * "지금 상태: 예정" 표시, 그리고 아직 렌더된 "완료로 바꾸기" 버튼이 함께 보여 화면이 자기모순이
+   * 된다(독립 검토 P3-5). 두 값을 한 번에 맞춰 표시와 버튼 목록이 언제나 서로 맞게 한다.
+   *
    * prop은 이 클라이언트의 저장이 만든 재검증이나 사용자가 부른 새로 고침으로만 바뀐다(서버가 미는
    * 경로가 없다). 그래서 prop 변화를 그대로 받아들여도 상대방의 변경을 모르고 덮어쓰는 일은 없다.
    */
   const [serverVersion, setServerVersion] = useState(version);
+  const [serverStatus, setServerStatus] = useState(status);
   const [versionSnapshot, setVersionSnapshot] = useState(version);
+  const [statusSnapshot, setStatusSnapshot] = useState(status);
   if (versionSnapshot !== version) {
     setVersionSnapshot(version);
     setServerVersion(version);
+  }
+  // 상태는 버전과 따로 본다. 내용만 고쳐도 버전은 오르지만 상태는 그대로일 수 있다.
+  if (statusSnapshot !== status) {
+    setStatusSnapshot(status);
+    setServerStatus(status);
   }
 
   async function submit(next: EventStatus) {
@@ -76,7 +87,9 @@ export function EventStatusPanel({
     if (result === null) return;
 
     if (result.ok) {
+      // 표시·버튼 목록이 알림과 어긋나지 않게 버전과 상태를 함께 갱신한다.
       setServerVersion(result.data.version);
+      setServerStatus(result.data.status);
       setNotice({
         tone: 'success',
         message:
@@ -105,8 +118,8 @@ export function EventStatusPanel({
       <p className="mt-1 text-sm text-muted">
         지금 상태:{' '}
         <strong className="font-semibold text-text" data-testid="event-status">
-          <span aria-hidden>{STATUS_ICONS[status]} </span>
-          {STATUS_LABELS[status]}
+          <span aria-hidden>{STATUS_ICONS[serverStatus]} </span>
+          {STATUS_LABELS[serverStatus]}
         </strong>
       </p>
 
@@ -134,7 +147,7 @@ export function EventStatusPanel({
         >
           <legend className="sr-only">상태 바꾸기</legend>
           <div className="flex flex-wrap items-center gap-2">
-            {EVENT_STATUSES.filter((value) => value !== status).map((value) => (
+            {nextStatusChoices(serverStatus).map((value) => (
               <button
                 key={value}
                 type="button"

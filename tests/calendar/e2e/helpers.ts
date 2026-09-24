@@ -108,6 +108,15 @@ export function koreanDate(iso: string): string {
   return `${year}년 ${month}월 ${day}일`;
 }
 
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'] as const;
+
+/** `2026년 10월 15일 (목)`. 월 격자의 날짜 라벨과 같은 표기다. */
+export function koreanDateWithWeekday(iso: string): string {
+  // 정오 UTC로 만들어 시간대 보정에 흔들리지 않게 한다(화면 코드와 같은 방식).
+  const weekday = WEEKDAYS[new Date(`${iso}T12:00:00Z`).getUTCDay()];
+  return `${koreanDate(iso)} (${weekday})`;
+}
+
 export function koreanMonth(monthKey: string): string {
   const [year, month] = monthKey.split('-').map(Number);
   return `${year}년 ${month}월`;

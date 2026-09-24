@@ -5,6 +5,7 @@ import {
   apiSetStatus,
   gotoCalendar,
   gotoMonth,
+  koreanDateWithWeekday,
   koreanMonth,
   loadCalendarAccounts,
   login,
@@ -206,7 +207,8 @@ test('달력의 날짜를 누르면 그 날짜로 일정 추가 화면이 열린
   await login(page, accounts.a);
   await gotoMonth(page, MONTH);
 
-  await page.getByRole('link', { name: `${OTHER_DAY}에 일정 추가` }).click();
+  // 라벨은 한국어 날짜·요일이다(ISO 원문을 읽지 않는다, 독립 검토 P3-7).
+  await page.getByRole('link', { name: `${koreanDateWithWeekday(OTHER_DAY)}에 일정 추가` }).click();
   await expect(page.getByRole('heading', { name: '일정 추가' })).toBeVisible();
   await expect(page.getByLabel('시작 날짜')).toHaveValue(OTHER_DAY);
 

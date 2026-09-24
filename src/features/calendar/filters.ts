@@ -69,6 +69,17 @@ export function hasActiveFilter(filters: CalendarFilters): boolean {
   return filters.scopes.length > 0 || filters.status !== null;
 }
 
+/**
+ * 범위 칩을 강조할지.
+ *
+ * 아무것도 고르지 않은 상태는 "셋 다 보여 주는 중"이다. 그때 칩을 모두 꺼 두면, 세 번째 칩을 눌러
+ * `[]`로 정규화되는 순간 앞의 두 강조까지 사라져 선택이 취소된 것처럼 보인다(독립 검토 P3-6).
+ * 보이는 것과 강조를 맞춘다: 고른 것이 없으면 셋 다 강조한다.
+ */
+export function isScopeActive(filters: CalendarFilters, scope: CalendarScope): boolean {
+  return filters.scopes.length === 0 || filters.scopes.includes(scope);
+}
+
 /** 필터를 URL로 만든다. 순서를 고정해 같은 필터는 같은 주소가 되게 한다. */
 export function buildCalendarHref(filters: CalendarFilters): string {
   const params = new URLSearchParams();

@@ -59,6 +59,7 @@ export function CalendarEventForm({
   wishOptions,
   wishOptionsMessage = null,
   kindLocked = false,
+  calendarHref,
 }: {
   mode: 'create' | 'edit';
   eventId?: string | null;
@@ -70,11 +71,17 @@ export function CalendarEventForm({
   wishOptionsMessage?: string | null;
   /** 수정 화면에서는 종류를 바꿀 수 없다(DB도 거부한다). */
   kindLocked?: boolean;
+  /**
+   * 보고 있던 달·보기·필터가 담긴 `/calendar?...` 주소.
+   * 저장 성공 후 상세로 갈 때와 취소할 때 함께 넘겨 그 상태를 잃지 않는다(독립 검토 P3-3).
+   */
+  calendarHref: string;
 }) {
   const router = useRouter();
   const idPrefix = useId();
   const idFor = (field: string) => `${idPrefix}-${field}`;
   const noticeRef = useRef<HTMLDivElement>(null);
+  const backQuery = `?back=${encodeURIComponent(calendarHref)}`;
 
   const [values, setValues] = useState<CalendarFormValues>(initialValues);
   const [baseVersion, setBaseVersion] = useState(version);
@@ -191,7 +198,8 @@ export function CalendarEventForm({
 
     if (result.ok) {
       setNotice({ tone: 'success', message: '저장했어요.' });
-      router.push(`/calendar/${result.data.eventId}`);
+      // 상세로 갈 때도 보고 있던 달·필터를 함께 넘긴다.
+      router.push(`/calendar/${result.data.eventId}${backQuery}`);
       return;
     }
 
@@ -221,7 +229,7 @@ export function CalendarEventForm({
             </button>
             {eventId ? (
               <Link
-                href={`/calendar/${eventId}`}
+                href={`/calendar/${eventId}${backQuery}`}
                 target="_blank"
                 className="btn-quiet !min-h-[36px] !px-3 text-xs"
               >
@@ -514,7 +522,7 @@ export function CalendarEventForm({
                   : '변경 저장'}
           </button>
           <Link
-            href={mode === 'edit' && eventId ? `/calendar/${eventId}` : '/calendar'}
+            href={mode === 'edit' && eventId ? `/calendar/${eventId}${backQuery}` : calendarHref}
             className="btn-quiet"
           >
             취소

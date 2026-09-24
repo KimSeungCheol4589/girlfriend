@@ -71,6 +71,7 @@ async function NewEvent({
       <div className="app-card px-5 py-6 sm:px-6">
         <CalendarEventForm
           mode="create"
+          calendarHref={backHref}
           wishOptions={wishes.ok ? wishes.wishes : []}
           wishOptionsMessage={wishes.ok ? null : wishes.message}
           initialValues={{
