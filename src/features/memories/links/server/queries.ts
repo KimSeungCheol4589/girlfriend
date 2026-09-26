@@ -381,38 +381,66 @@ export async function listSourceMemories(
   const supabase = await client();
   if (!supabase) return { ok: false, message: LINK_FAILED };
 
+  // 세 번 나눠 읽는다. `memory_links`→`memories`, `memories`→`memory_photos`는 모두
+  // (id, space_id) 복합 FK라 PostgREST 중첩 select의 관계 해석이 보장되지 않는다.
+  // MEM-001의 조회도 같은 이유로 따로 읽어 JS에서 합친다(`server/queries.ts`).
   const column = source === 'event' ? 'calendar_event_id' : 'wish_item_id';
-  const { data, error } = await supabase
+  const links = await supabase
     .from('memory_links')
-    .select('memory_id, memories!inner(id, title, memory_date, memory_photos(id))')
+    .select('memory_id')
     .eq('space_id', scope.spaceId)
     .eq(column, sourceId);
-
-  if (error) {
-    logQueryFailure('listSourceMemories', error.code);
+  if (links.error) {
+    logQueryFailure('listSourceMemories.links', links.error.code);
     return { ok: false, message: LINK_FAILED };
   }
 
-  const items: SourceMemorySummary[] = [];
-  for (const row of (data ?? []) as Record<string, unknown>[]) {
-    const memory = row.memories as Record<string, unknown> | null;
-    if (!memory) continue;
-    const memoryId = memory.id;
-    const title = memory.title;
-    const memoryDate = memory.memory_date;
-    if (typeof memoryId !== 'string' || typeof title !== 'string') continue;
-    if (typeof memoryDate !== 'string' || !isCalendarDate(memoryDate)) continue;
-    const photos = memory.memory_photos;
-    items.push({
-      memoryId,
-      title,
-      memoryDate,
-      photoCount: Array.isArray(photos) ? photos.length : 0,
-    });
+  const memoryIds: string[] = [];
+  for (const row of (links.data ?? []) as Record<string, unknown>[]) {
+    const id = row.memory_id;
+    if (typeof id === 'string' && isUuid(id)) memoryIds.push(id);
+  }
+  if (memoryIds.length === 0) return { ok: true, items: [] };
+
+  // RLS가 같은 공간만 돌려준다. 공간 조건을 한 번 더 걸어 의도를 드러낸다.
+  const memories = await supabase
+    .from('memories')
+    .select('id, title, memory_date')
+    .eq('space_id', scope.spaceId)
+    .in('id', memoryIds);
+  if (memories.error) {
+    logQueryFailure('listSourceMemories.memories', memories.error.code);
+    return { ok: false, message: LINK_FAILED };
   }
 
+  const photos = await supabase.from('memory_photos').select('memory_id').in('memory_id', memoryIds);
+  if (photos.error) {
+    logQueryFailure('listSourceMemories.photos', photos.error.code);
+    return { ok: false, message: LINK_FAILED };
+  }
+
+  const photoCounts = new Map<string, number>();
+  for (const row of (photos.data ?? []) as Record<string, unknown>[]) {
+    const id = row.memory_id;
+    if (typeof id !== 'string') continue;
+    photoCounts.set(id, (photoCounts.get(id) ?? 0) + 1);
+  }
+
+  const items: SourceMemorySummary[] = [];
+  for (const row of (memories.data ?? []) as Record<string, unknown>[]) {
+    const memoryId = row.id;
+    const title = row.title;
+    const memoryDate = row.memory_date;
+    if (typeof memoryId !== 'string' || typeof title !== 'string') continue;
+    if (typeof memoryDate !== 'string' || !isCalendarDate(memoryDate)) continue;
+    items.push({ memoryId, title, memoryDate, photoCount: photoCounts.get(memoryId) ?? 0 });
+  }
+
+  // 추억 목록과 같은 정렬(날짜 DESC, id DESC).
   items.sort((a, b) =>
-    a.memoryDate === b.memoryDate ? b.memoryId.localeCompare(a.memoryId) : b.memoryDate.localeCompare(a.memoryDate),
+    a.memoryDate === b.memoryDate
+      ? b.memoryId.localeCompare(a.memoryId)
+      : b.memoryDate.localeCompare(a.memoryDate),
   );
 
   return { ok: true, items };
