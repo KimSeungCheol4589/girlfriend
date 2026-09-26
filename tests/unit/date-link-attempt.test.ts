@@ -62,4 +62,20 @@ describe('LiveMemoryForm이 이 규칙을 실제로 쓴다', () => {
     // 그리고 어디서 고쳐야 하는지 알려 준다.
     expect(source).toContain('저장한 기록의 수정 화면');
   });
+
+  it('부분 성공 상태에서 홈 고정 체크박스도 잠근다(재검토 P2)', () => {
+    // 고정 체크박스에는 `FIELD_IDS` 항목이 없어 `checked` 속성을 기준으로 확인한다.
+    const pinned = /checked=\{form\.isPinned\}\s*\n\s*disabled=\{disabled\}/;
+    expect(pinned.test(source), '고정 체크박스에 disabled가 필요하다').toBe(true);
+
+    // 체크박스가 더 늘어나도 잠금을 놓치지 않게, 이 화면의 모든 체크박스를 확인한다.
+    const checkboxes = source.match(/<input\b[^>]*type="checkbox"[\s\S]*?\/>/g) ?? [];
+    expect(checkboxes.length, '검사할 체크박스를 찾지 못했다').toBeGreaterThan(0);
+    for (const box of checkboxes) {
+      expect(box, `체크박스에 disabled가 없다: ${box}`).toContain('disabled={disabled}');
+    }
+
+    // 안내 문장도 고정·사진이 이미 저장돼 바꿀 수 없다는 사실을 알려 준다.
+    expect(source).toContain('이야기·사진·고정은 이미 저장돼');
+  });
 });

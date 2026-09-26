@@ -586,6 +586,7 @@ export function LiveMemoryForm({
             <input
               type="checkbox"
               checked={form.isPinned}
+              disabled={disabled}
               onChange={(event) => update('isPinned', event.target.checked)}
               className="h-5 w-5 accent-accent"
             />
@@ -702,11 +703,11 @@ function PartialLinkNotice({
           저장한 기록의 상세 화면에서 연결을 이어 할 수 있습니다.
         </p>
         <p className="text-xs leading-relaxed">
-          제목·날짜·장소·태그·이야기는 이미 저장돼 이 화면에서는 더 고칠 수 없어요. 내용을 바꾸려면{' '}
+          제목·날짜·장소·태그·이야기·사진·고정은 이미 저장돼 이 화면에서는 더 고칠 수 없어요. 내용을{' '}
           <a href={`/memories/${memoryId}/edit`} className="underline">
             저장한 기록의 수정 화면
           </a>
-          에서 고쳐 주세요. 여기서 입력을 바꿔도 저장되지 않습니다.
+          에서 바꿔 주세요. 여기서 입력을 바꿔도 저장되지 않습니다.
         </p>
       </div>
     </ErrorNotice>
