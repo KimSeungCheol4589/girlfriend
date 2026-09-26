@@ -126,7 +126,7 @@ QA 보강 도우미(`.agent-runtime/qa-mvp/e2e/helpers.ts`의 `linkedSourceOf`)�
   단언을 약화하지 않았고, 대응 ID가 비어 있으면 조용히 `null`을 돌려주는 대신 예외를 던진다.
 - 고친 파일은 `.agent-runtime/` 아래라 **커밋하지 않는다**(Git 제외 경로).
 
-### 2. 진행 중 — 375px 캘린더 가로 넘침 (진단 보강, 원인 미확정)
+### 2. 해결 — 375px 캘린더 가로 넘침 (원인: 절대 배치 `sr-only` 배지가 자르기를 통과)
 
 `03-mobile-375.spec.ts:82`의 `/calendar` `expectNoOverflow`가 실패했다. **원인을 찾지 못했고,
 근거 없이 제품을 고치지 않았다.** 확인한 내용은 아래와 같다.
@@ -227,6 +227,69 @@ Chromium에서 직접 확인했다: 둘 다 `visible`이고, 조상 규칙은 �
 
 **이번에도 제품 코드는 고치지 않았다.** 판정을 완화하거나 `overflow`를 전역으로 숨기지 않았다.
 
+## 375px 캘린더 넘침 — 원인 확정과 수정 (3차 실행 근거)
+
+총괄의 3차 실행이 원인을 좁혀 줬다. `body` 직계 자식 이등분에서 **`app-shell-root`를 감추면 375로
+돌아왔다** → 개발 서버 오버레이가 아니라 **앱 subtree**다. 그리고 후보로
+`[data-testid=calendar-day-event] a`(truncate, clientWidth 36, scrollWidth 351) 안의
+제목 `span`(폭 298, right 661)과 그 뒤 `sr-only` `span`(폭 1, right 661)이 지목됐다.
+
+### 원인
+
+Tailwind `sr-only`는 **`position: absolute`**다(빌드된 CSS에서 확인). CSS에서 `overflow: hidden`은
+**자기가 컨테이닝 블록이 아닌** 조상일 때 절대 배치 자손을 자르지 않는다. 칩(`<Link>`)은
+`block truncate …`로 **정적 배치**였으므로, 칩 안의 완료·취소 배지의 컨테이닝 블록은 칩이 아니었다.
+긴 제목(`white-space: nowrap`) 뒤로 밀려난 배지가 **칩의 자르기를 그대로 통과해** 문서 스크롤 폭을 늘렸다.
+
+제목 `span`과 배지의 `right`가 **둘 다 661**인 것이 이 설명과 맞는다. 제목은 인라인이라 칩이 자르지만,
+배지는 절대 배치라 자르지 못한다. 그래서 문서가 661이 된다.
+
+### 재현 (Chromium 375×812, MonthGrid의 실제 클래스 구조)
+
+공백 없는 40자 제목 + 완료 배지로 재현했다.
+
+| 상태 | `scrollWidth` | `clientWidth` | `innerWidth` | clientWidth 기준 | innerWidth 기준 |
+| --- | --- | --- | --- | --- | --- |
+| 수정 전 (`isMobile` 없음) | **577** | 375 | 375 | FAIL | FAIL |
+| 수정 전 (`isMobile: true`) | **577** | 375 | **577** | FAIL | **PASS(가려진다)** |
+| 수정 후 (`isMobile` 없음) | 375 | 375 | 375 | PASS | PASS |
+| 수정 후 (`isMobile: true`) | 375 | 375 | 375 | PASS | PASS |
+
+첫 줄이 받은 수치와 같은 모양이다(실제 Windows는 글꼴 폭 차이로 661). 배지의
+`getBoundingClientRect().right`는 두 경우 모두 577이다 — 달라지는 것은 **누가 자르는가**뿐이다.
+
+### 제품 수정 (한 곳, 클래스 하나)
+
+`src/features/calendar/components/MonthGrid.tsx` — 일정 칩에 **`relative`**를 추가했다.
+칩이 컨테이닝 블록이 되어 `truncate`의 자르기가 절대 배치 배지에도 적용된다. 왜 필요한지 주석으로 남겼다.
+
+**내용을 숨겨 통과시킨 것이 아니다.** 배지는 접근성 트리에 그대로 있고(시각적으로만 잘린다. `sr-only`는
+애초에 눈에 보이지 않는다), 제목 전체는 `title` 속성과 일정 상세 화면(`break-words`)에서 볼 수 있다.
+전역 `overflow` 숨김이나 판정 완화는 하지 않았다.
+
+같은 패턴(`truncate` 요소 안의 `sr-only`)을 `src/` 전체에서 찾아봤다. **`MonthGrid.tsx` 한 곳뿐이다.**
+`MonthGrid`의 `<caption className="sr-only">`도 절대 배치지만 정적 위치가 표 왼쪽 위(right≈17)라
+넘침에 기여하지 않는다 — 확인만 하고 건드리지 않았다. 허용 범위 밖 공통 컴포넌트는 손대지 않았고,
+손댈 필요도 없었다.
+
+### 독립 검토 지적 반영 — 회귀 테스트를 좁혔다
+
+`tests/unit/calendar-month-grid-mobile.test.ts`를 다시 썼다.
+
+- **뺀 것**: `table-fixed`·`overflow-hidden`·`min-w-0` 고정. 인과가 확인되지 않았다(특히 `min-w-0`
+  주장은 근거가 없었다. 지적이 맞다).
+- **남긴 것**: 칩이 **`truncate`와 `relative`를 함께** 갖는지. 이번 재현으로 인과가 확인된 유일한 조건이다.
+- 마크업 전체 문자열이 아니라 **`className` 템플릿의 고정 클래스 토큰**만 검사한다
+  (처음엔 마크업 전체를 봐서 *주석에 적힌 "relative"*까지 통과했다. 그 누수를 확인하고 좁혔다).
+- **두 방향으로 확인했다**: `relative`를 빼면 실패, `truncate`를 빼면 실패, 원래대로면 통과.
+- 실제 렌더 회귀는 QA 보강 스위트의 375px 검사가 담당한다(실제 DB 필요, 총괄 실행).
+
+### QA 판정 기준도 한 군데 고쳤다 (`.agent-runtime/`, 커밋 안 함)
+
+`hasHorizontalOverflow`의 기준을 `window.innerWidth` → **`documentElement.clientWidth`**로 바꿨다.
+위 표 두 번째 줄이 이유다: `isMobile: true`에서는 Chromium이 `innerWidth`를 **내용 폭까지 늘려** 보고해
+실제 넘침이 통과해 버린다. `clientWidth`는 늘어나지 않는다. **더 엄격해진 것이고 완화가 아니다.**
+
 ## 실행한 검증 (2차 재검토 반영 후 최종 head 기준)
 
 검증은 **클라우드 리눅스 거울**에서 했다. 기준 커밋 `91dce48`에 이 브랜치의 커밋 차이를 그대로
@@ -238,7 +301,7 @@ Chromium에서 직접 확인했다: 둘 다 `visible`이고, 조상 규칙은 �
 | frozen install (pnpm 11.19.0, Node 22) | 통과, package/lockfile 변경 없음 |
 | `pnpm exec tsc --noEmit` | 통과 |
 | `pnpm exec eslint .` | 통과 |
-| `pnpm test` (vitest, 저장소 실제 스크립트) | **830 passed / 62 files** (기준 809 → 825 → 826 → QA 보강 회귀 4건 추가) |
+| `pnpm test` (vitest, 저장소 실제 스크립트) | **828 passed / 62 files** (기준 809 → 825 → 826 → 월 보기 회귀 2건 추가) |
 | `pnpm build` | 통과 |
 
 `--runInBand`는 이 저장소의 스크립트가 Jest가 아니라 vitest라 해당 옵션이 없다. 기본 `pnpm test`로 실행했다.
@@ -246,9 +309,9 @@ Chromium에서 직접 확인했다: 둘 다 `visible`이고, 조상 규칙은 �
 ## 미실행 검증 — 이유와 재개 조건
 
 **QA 보강 재실행이 필요한 항목**(총괄 담당): `03-mobile-375.spec.ts`의 `/calendar` 검사를 다시 돌려
-**이등분 결과**를 확인해야 한다. 어떤 `body` 자식을 감췄을 때 `scrollWidth`가 375로 돌아오는지가
-원인을 가리킨다. 연결·취소·부분실패 3개는 head `4b053b7`에서 이미 통과했다.
-이 세션은 로컬 Supabase에 닿을 수 없어 어느 것도 직접 실행하지 못했다.
+`relative` 수정이 실제 화면에서 통하는지 확인해야 한다(복제 재현에서는 577 → 375). 연결·취소·부분실패
+3개는 head `4b053b7`에서 이미 통과했다. 이 세션은 로컬 Supabase에 닿을 수 없어 직접 실행하지 못했다.
+판정 기준을 `clientWidth`로 바꿨으므로, 통과하더라도 수치(`scrollWidth`/`clientWidth`)를 함께 봐 주면 좋다.
 
 
 이 세션은 사용자 PC의 **파일**에는 접근하지만, Windows에서 loopback에 묶여 실행 중인
