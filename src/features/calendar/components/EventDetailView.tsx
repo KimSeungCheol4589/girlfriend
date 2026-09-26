@@ -1,5 +1,8 @@
 import Link from 'next/link';
 
+import { SourceMemoriesPanel } from '@/features/memories/links/components/SourceMemoriesPanel';
+import type { SourceMemoriesResult } from '@/features/memories/links/types';
+
 import { KIND_HINTS } from '../constants';
 import { describeTiming } from '../datetime';
 
@@ -19,9 +22,12 @@ import type { CalendarEventDetail } from '../types';
 export function EventDetailView({
   event,
   calendarHref,
+  dateRecords,
 }: {
   event: CalendarEventDetail;
   calendarHref: string;
+  /** 이 일정으로 남긴 데이트 기록(DATE-001). 조회 실패도 그대로 전달한다. */
+  dateRecords: SourceMemoriesResult;
 }) {
   return (
     <div className="space-y-6">
@@ -105,6 +111,13 @@ export function EventDetailView({
         status={event.status}
         version={event.version}
         canEdit={event.canEdit}
+      />
+
+      <SourceMemoriesPanel
+        source="event"
+        sourceId={event.id}
+        done={event.status === 'done'}
+        result={dateRecords}
       />
     </div>
   );

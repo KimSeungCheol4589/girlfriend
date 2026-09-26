@@ -100,7 +100,12 @@ export function MonthGrid({
                             <Link
                               href={`/calendar/${event.id}?back=${encodeURIComponent(back)}`}
                               data-testid="calendar-day-event"
-                              className={`block truncate rounded-md px-1.5 py-1 text-[11px] leading-tight ${
+                              // `relative`는 장식이 아니다. 아래 `sr-only` 배지는 절대 배치인데,
+                              // `overflow: hidden`은 **자기 컨테이닝 블록이 아닌** 조상에서는 절대 배치
+                              // 자손을 자르지 않는다. 그래서 이 칩이 컨테이닝 블록이 되어야 `truncate`의
+                              // 자르기가 그 배지에도 적용된다. 없으면 긴 제목 뒤로 밀린 배지가 화면 밖에
+                              // 남아 문서 가로 스크롤을 만든다(자세한 수치는 MonthGrid 회귀 테스트에 있다).
+                              className={`relative block truncate rounded-md px-1.5 py-1 text-[11px] leading-tight ${
                                 event.status === 'cancelled'
                                   ? 'bg-surface-muted text-muted line-through'
                                   : event.status === 'done'

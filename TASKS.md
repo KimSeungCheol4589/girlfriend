@@ -1,6 +1,6 @@
 # 협업 작업 목록
 
-갱신일: 2026-09-23 · 관리 담당: 총괄, 통합
+갱신일: 2026-09-26 · 관리 담당: 총괄, 통합
 
 상태: planned → assigned → in_progress → ready → integrated. 수정 요청은 changes_requested, 외부 조건 대기는 blocked로 기록한다. assigned는 지시 전달 완료, ready는 커밋·보고서 제출 완료, integrated는 총괄 검증·dev 반영 완료다. main 승격은 사용자 결정 후 별도로 기록한다.
 
@@ -21,8 +21,8 @@
 | THEME-001 | 홈, 추억, 꾸미기 → 로컬 Claude | 테마·커버·홈 구성의 실제 공유 저장과 미리보기 | MEM-001 통합 | integrated |
 | WISH-001 | DB 담당 → 로컬 Claude | 맛집 외 함께 하고 싶은 일 CRUD·분류·계획·완료·권한·충돌 처리 | FOOD-001 통합 | integrated |
 | CAL-001 | DB 담당 → 로컬 Claude | 개인·공동 일정 월/목록·등록·수정·완료 체크·소유권·충돌 처리 | WISH-001 | integrated |
-| DATE-001 | 홈, 추억, 꾸미기 → 로컬 Claude | 일정·위시에서 사진 데이트 기록 작성, 기존 추억과 선택적 연결·탐색 | THEME-001, WISH-001, CAL-001 | planned |
-| QA-001 | 총괄, 통합 | 전체 연결·모바일·외부 계정 접근 차단·업로드·백업 복원 확인 | 기능 구현 완료 | planned |
+| DATE-001 | 홈, 추억, 꾸미기 → Claude | 일정·위시에서 사진 데이트 기록 작성, 기존 추억과 선택적 연결·탐색 | THEME-001, WISH-001, CAL-001 | integrated |
+| QA-001 | 총괄, 통합 → Claude 검증 보강 | 전체 연결·모바일·외부 계정 접근 차단·업로드·백업 복원 확인 | 기능 구현 완료 | integrated |
 
 UI-001과 DB-001의 상세 지시는 각 Codex 담당 작업에 전달하고, 실제 구현과 코드 검토는 Claude Code CLI로 수행한다. 후속 작업은 의존성이 충족된 뒤 실제 결과에 맞춰 범위를 구체화한다. 앱 설정·lockfile은 UI-001에서만 생성하고 DB-001은 수정하지 않는다.
 
@@ -110,3 +110,17 @@ DB 담당은 최신 dev에서 codex/auth-foundation 브랜치로 시작한다. �
 - MEM-001 인증 테스트 예외 승인: 실제 `/memories` 연결에 따라 기존 `tests/auth/e2e/session.spec.ts`의 추억 화면 기대값 한 곳과 `tests/auth/README.md`의 관련 설명만 MEM 담당이 조정할 수 있다. 인증·초대 동작이나 다른 인증 테스트 범위는 변경하지 않으며, 변경 이유와 인증 E2E 회귀 결과를 MEM-001 인수인계에 남긴다.
 - FOOD-001(DB 담당): 실제 인증 공간에서 맛집 등록·목록/검색/필터·방문 상태/날짜·사용자별 별점과 한 줄 후기·수정/삭제를 구현한다. `src/app/restaurants/**`, `src/features/restaurants/**`, 필요 시 `supabase/migrations/**`와 `supabase/tests/**`를 소유한다. 두 구성원의 공용 수정 권한과 개인 후기 본인 수정 권한, 입력 검증, 버전 충돌·중복 제출·실패 표시를 확인한다. 검증은 FOOD 전용 합성 계정·namespace·포트 3004로 MEM의 3003과 분리한다. 홈·추억·인증·공통 설정 수정은 총괄과 먼저 조율한다.
 - 양쪽 모두 최신 dev에서 별도 Worktree·기능 브랜치를 시작하고 Claude 구현·별도 새 읽기 전용 검토 후 커밋 SHA·검증·잔여 문제를 `docs/handoffs/<작업ID>.md`로 보고한다. 담당자는 dev/main을 직접 수정하지 않는다.
+
+## 2026-09-26 QA 후속 한정 배정
+
+- 사용자 명시 승인으로 지정 Claude 구현 세션에 DATE worktree의 QA helper, 캘린더 컴포넌트 원인 파일, 관련 회귀 테스트 및 DATE 인수인계 문서의 수정 소유권을 한정 배정했다. 공통 파일 동시 수정은 금지한다.
+- 보강 DATE 테스트 4개 실패: 3개는 memory_links의 잘못된 컬럼 조회(42703), 1개는 375px 캘린더 가로 넘침. 수정 후 새 독립 검토와 보강 테스트 재실행 전 DATE/QA 완료 및 dev 통합을 보류한다.
+
+## 2026-09-26 MVP 최종 통합
+
+- DATE-001 최종 제출 304eb34. 제품은 9467970 이후 동일하며, c47da60은 테스트·진단 정정, 304eb34는 인수인계 이력 정정이다.
+- 전체 제품 독립 검토와 각 후속 delta·문서 검토 완료. 마지막 검토 f3202576-a1dc-47ff-9467-28c9d17e9825에서 P0/P1/P2 없음 승인.
+- 총괄 단위828·lint·typecheck·build, SQL11/596단언, 실제 인증 DATE/MEM/FOOD/THEME/WISH/CAL/AUTH와 375px 보강 및 데모48 회귀 통과. c47da60의 변경 테스트2개 별도 통과.
+- QA-001 로컬 MVP 검증 완료. DB 복원 양쪽117단언·데이터지문99일치 및 유효권한 수동 보완 검증, 사진 복원25확인. DB 자동러너의 ACL표현 비교는 미통과이며 수동 보완과 구분한다. 재사용 전 정규화 개선 필요.
+- 기존 데이터 행수·해시 보존 및 QA fixture 정리 확인. 상세 범위·제약은 docs/handoffs/QA-001.md.
+- main 승격·공개배포·운영설정은 수행하지 않았다. MVP 완료 후 자동 신규 기능 배정 없음.

@@ -10,6 +10,13 @@ import { normalizeTags, validateMemoryDraft } from '@/features/memories/schema';
 import { MEMORY_LIMITS } from '@/lib/contracts';
 import { todayInSeoul } from '@/lib/dates';
 
+import { SourceDraftCard } from '../../links/components/SourceDraftCard';
+import { LINK_CODE_MESSAGES } from '../../links/errors';
+import { shouldAttemptLink } from '../../links/link-attempt';
+import type { MemoryPrefill } from '../../links/prefill';
+import { linkMemoryPlanAction } from '../../links/server/actions';
+import { memoryLinkPath, type MemorySourceRef } from '../../links/source';
+import type { LinkMemoryData } from '../../links/types';
 import { saveMemoryAction } from '../../server/actions';
 import {
   MEMORY_CODE_MESSAGES,
@@ -24,6 +31,19 @@ import type { SaveMemoryData } from '../types';
 
 import { LivePhotoPicker } from './LivePhotoPicker';
 import { existingPhotoItems, useLivePhotos } from './use-live-photos';
+
+/**
+ * 완료한 일정·위시에서 들어왔을 때 서버가 만들어 주는 초안.
+ * 제목·날짜·장소만 채우고 본문은 사용자의 글이다(DATE-001).
+ */
+export type LinkDraft = {
+  ref: MemorySourceRef;
+  prefill: MemoryPrefill;
+  /** 원본 제목 원문(줄이지 않은 값). 카드 표시에만 쓴다. */
+  sourceTitle: string;
+  sourceSummary: string;
+  sourceHref: string;
+};
 
 export type EditableMemory = {
   id: string;
@@ -46,9 +66,20 @@ type FormState = {
   isPinned: boolean;
 };
 
-function initialFormState(memory: EditableMemory | undefined): FormState {
+function initialFormState(
+  memory: EditableMemory | undefined,
+  link: LinkDraft | undefined,
+): FormState {
   if (!memory) {
-    return { title: '', body: '', memoryDate: todayInSeoul(), location: '', tagsInput: '', isPinned: false };
+    // 연결 초안이 있으면 제목·날짜·장소만 채운다. 본문은 언제나 사용자가 쓴 글이다.
+    return {
+      title: link?.prefill.title ?? '',
+      body: '',
+      memoryDate: link?.prefill.memoryDate ?? todayInSeoul(),
+      location: link?.prefill.location ?? '',
+      tagsInput: '',
+      isPinned: false,
+    };
   }
   return {
     title: memory.title,
@@ -73,6 +104,9 @@ const FIELD_ORDER: MemoryFormField[] = ['title', 'memoryDate', 'location', 'tags
 
 type SaveProblem = { code: MemoryErrorCode; message: string };
 
+/** 본문·사진 저장이 끝난 뒤의 복구 지점. 연결만 다시 시도할 때 쓴다. */
+type SavedMemory = { id: string; version: number; cleanup: SaveMemoryData['cleanup'] };
+
 /**
  * 실제 추억 작성·수정 폼.
  *
@@ -81,18 +115,35 @@ type SaveProblem = { code: MemoryErrorCode; message: string };
  * - 실패(네트워크·검증·충돌·업로드)해도 입력한 글과 이미 올린 사진을 그대로 둔다.
  * - 같은 입력의 재시도는 같은 requestId, 입력을 고치면 새 requestId(중복 저장 방지는 DB도 한다).
  * - 저장 중에는 버튼을 막아 두 번 제출되지 않게 한다.
+ *
+ * ## 연결(DATE-001)은 2단계다
+ *
+ * 1) 기존 `save_memory`로 본문·사진을 **원자적으로** 저장한다(이 경로는 그대로 재사용한다).
+ * 2) 반환받은 memoryId·version으로 `link_memory_plan`을 부른다.
+ *
+ * 연결만 실패하면 **이미 저장된 기록과 사진은 그대로 남는다.** 그래서 화면이 부분 성공을
+ * 분명히 알리고 **연결만** 다시 시도하게 한다. 저장을 다시 눌러 같은 기록이 두 번 생기지 않도록,
+ * 1)이 끝난 뒤의 제출은 2)만 실행한다. 저장된 기록 ID는 화면에 링크로 남겨 두어 이 화면을
+ * 떠나거나 다시 로그인해도 상세 화면에서 연결을 이어 할 수 있다.
+ * 두 단계는 서로 **다른 requestId**를 쓴다(같은 키에 다른 입력이면 DB가 거부한다).
  */
 export function LiveMemoryForm({
   memory,
   photosEnabled,
+  link,
+  sourceNotice,
 }: {
   memory?: EditableMemory;
   photosEnabled: boolean;
+  /** 완료한 일정·위시에서 들어온 경우의 초안. 없으면 기존 흐름과 완전히 같다. */
+  link?: LinkDraft;
+  /** 원본을 확인하지 못했거나 query를 거부했을 때의 안내. 연결 없음과 구분해 보여 준다. */
+  sourceNotice?: string | null;
 }) {
   const isEdit = memory !== undefined;
   const router = useRouter();
 
-  const [form, setForm] = useState<FormState>(() => initialFormState(memory));
+  const [form, setForm] = useState<FormState>(() => initialFormState(memory, link));
   const photos = useLivePhotos(
     existingPhotoItems(memory?.photoAssetIds ?? [], memory?.title ?? '기록'),
     photosEnabled,
@@ -107,13 +158,19 @@ export function LiveMemoryForm({
   const summaryRef = useRef<HTMLDivElement>(null);
   const [summaryFocusTick, setSummaryFocusTick] = useState(0);
 
+  // 연결 상태. `link`가 없으면 아래 값들은 쓰이지 않는다(기존 흐름과 같다).
+  const [linkEnabled, setLinkEnabled] = useState(link !== undefined);
+  const [savedMemory, setSavedMemory] = useState<SavedMemory | null>(null);
+  const [linkProblem, setLinkProblem] = useState<SaveProblem | null>(null);
+  const linkTracker = useRef(createRequestKeyTracker());
+
   useEffect(() => {
     if (summaryFocusTick === 0) return;
     summaryRef.current?.focus();
   }, [summaryFocusTick]);
 
   const baseline = useRef(
-    JSON.stringify({ form: initialFormState(memory), photos: memory?.photoAssetIds ?? [] }),
+    JSON.stringify({ form: initialFormState(memory, link), photos: memory?.photoAssetIds ?? [] }),
   );
   const isDirty =
     !saved &&
@@ -141,7 +198,12 @@ export function LiveMemoryForm({
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const leaveTarget = isEdit ? `/memories/${memory.id}` : '/memories';
+  // 본문이 이미 저장됐다면 "취소"는 저장된 기록으로 간다(쓴 내용을 버리는 것이 아니다).
+  const leaveTarget = savedMemory
+    ? `/memories/${savedMemory.id}`
+    : isEdit
+      ? `/memories/${memory.id}`
+      : '/memories';
 
   const focusFirstError = (errors: MemoryFieldErrors) => {
     const first = FIELD_ORDER.find((field) => errors[field] !== undefined);
@@ -150,9 +212,65 @@ export function LiveMemoryForm({
     if (!target || document.activeElement !== target) setSummaryFocusTick((tick) => tick + 1);
   };
 
+  const noticeFor = (saved: SavedMemory, linked: boolean): string => {
+    if (linked) {
+      return saved.cleanup === 'pending' ? 'saved-linked-cleanup-pending' : 'saved-linked';
+    }
+    return saved.cleanup === 'pending' ? 'saved-cleanup-pending' : 'saved';
+  };
+
+  /**
+   * 2단계 중 두 번째. **본문·사진 저장이 끝난 뒤에만** 부른다.
+   * 실패하면 저장된 기록을 지우지 않고 그대로 두고, 연결만 다시 시도할 수 있게 한다.
+   */
+  const runLink = async (saved: SavedMemory): Promise<void> => {
+    // 방어 분기. 연결 대상이 없거나 사용자가 "연결 없이 기록하기"를 고른 상태에서는
+    // 연결을 만들지 않는다. 여기서 그냥 돌아가면 submitting이 켜진 채로 남아 버튼이 잠기므로
+    // 반드시 되돌린다.
+    if (!link || !shouldAttemptLink({ hasLink: true, linkEnabled })) {
+      setSubmitting(false);
+      return;
+    }
+    const input = {
+      memoryId: saved.id,
+      source: link.ref.source,
+      sourceId: link.ref.sourceId,
+      expectedVersion: saved.version,
+    };
+    // 본문 저장과 **다른** 키다. 같은 키에 다른 입력을 보내면 DB가 거부한다.
+    const requestId = linkTracker.current.keyFor(input);
+
+    setLinkProblem(null);
+    let result: MemoryActionResult<LinkMemoryData>;
+    try {
+      result = await linkMemoryPlanAction({ ...input, requestId });
+    } catch {
+      result = { ok: false, code: 'RETRYABLE_ERROR', message: LINK_CODE_MESSAGES.RETRYABLE_ERROR };
+    }
+    linkTracker.current.settle(isDefinitiveMemoryResult(result));
+
+    if (result.ok) {
+      // 연결이 추억 version을 올렸다. 복구 지점을 최신 값으로 맞춘다.
+      setSavedMemory({ ...saved, version: result.data.version });
+      router.push(`/memories/${saved.id}?notice=${noticeFor(saved, true)}`);
+      return;
+    }
+    setSubmitting(false);
+    setLinkProblem({ code: result.code, message: result.message });
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (inFlight.current) return;
+
+    // 본문·사진이 이미 저장됐다면 저장을 **다시 하지 않는다**(같은 기록이 두 번 생기지 않게).
+    if (savedMemory) {
+      inFlight.current = true;
+      setSubmitting(true);
+      await runLink(savedMemory);
+      inFlight.current = false;
+      return;
+    }
 
     const tags = normalizeTags(form.tagsInput);
     const draft = validateMemoryDraft({
@@ -216,16 +334,31 @@ export function LiveMemoryForm({
       result = { ok: false, code: 'RETRYABLE_ERROR', message: MEMORY_CODE_MESSAGES.RETRYABLE_ERROR };
     }
     tracker.current.settle(isDefinitiveMemoryResult(result));
-    inFlight.current = false;
 
     if (result.ok) {
       photos.markSaved();
       setSaved(true);
-      const notice = result.data.cleanup === 'pending' ? 'saved-cleanup-pending' : 'saved';
-      router.push(`/memories/${result.data.memoryId}?notice=${notice}`);
+      const saved: SavedMemory = {
+        id: result.data.memoryId,
+        version: result.data.version,
+        cleanup: result.data.cleanup,
+      };
+      // `savedMemory`는 **연결을 실제로 시도하는 경우에만** 둔다.
+      // 이 값이 있으면 화면이 부분 성공(저장됨 + 연결 남음) 상태가 되고 다시 제출하면
+      // 연결을 시도한다. 연결 없는 저장이나 사용자가 연결을 끈 저장에서 이 값을 두면
+      // 원하지 않은 연결이 생기거나 부분 성공 안내가 잘못 뜬다.
+      if (link && shouldAttemptLink({ hasLink: true, linkEnabled })) {
+        setSavedMemory(saved);
+        await runLink(saved);
+        inFlight.current = false;
+        return;
+      }
+      inFlight.current = false;
+      router.push(`/memories/${saved.id}?notice=${noticeFor(saved, false)}`);
       return;
     }
 
+    inFlight.current = false;
     setSubmitting(false);
     setProblem({ code: result.code, message: result.message });
     if (result.fieldErrors) {
@@ -258,6 +391,26 @@ export function LiveMemoryForm({
           </p>
         </div>
 
+        {/* 원본 query를 거부했거나 원본을 읽지 못한 경우. "연결 없음"과 구분해 알린다. */}
+        {sourceNotice ? (
+          <ErrorNotice role="status" title="연결할 계획을 확인하지 못했어요" description={sourceNotice}>
+            <p className="text-xs">기록은 그대로 남길 수 있어요. 나중에 상세 화면에서 연결할 수 있습니다.</p>
+          </ErrorNotice>
+        ) : null}
+
+        {link ? (
+          <SourceDraftCard
+            source={link.ref.source}
+            sourceHref={link.sourceHref}
+            sourceTitle={link.sourceTitle}
+            sourceSummary={link.sourceSummary}
+            prefill={link.prefill}
+            linkEnabled={linkEnabled}
+            onDisableLink={() => setLinkEnabled(false)}
+            disabled={disabled}
+          />
+        ) : null}
+
         {errorEntries.length > 0 || problem ? (
           <div ref={summaryRef} tabIndex={-1} className="space-y-3">
             {errorEntries.length > 0 ? (
@@ -280,6 +433,7 @@ export function LiveMemoryForm({
             </label>
             <input
               id={FIELD_IDS.title}
+              disabled={disabled}
               name="title"
               value={form.title}
               onChange={(event) => update('title', event.target.value)}
@@ -307,6 +461,7 @@ export function LiveMemoryForm({
               </label>
               <input
                 id={FIELD_IDS.memoryDate}
+              disabled={disabled}
                 name="memoryDate"
                 type="date"
                 value={form.memoryDate}
@@ -331,6 +486,7 @@ export function LiveMemoryForm({
               </label>
               <input
                 id={FIELD_IDS.location}
+              disabled={disabled}
                 name="location"
                 value={form.location}
                 onChange={(event) => update('location', event.target.value)}
@@ -354,6 +510,7 @@ export function LiveMemoryForm({
             </label>
             <input
               id={FIELD_IDS.tags}
+              disabled={disabled}
               name="tags"
               value={form.tagsInput}
               onChange={(event) => update('tagsInput', event.target.value)}
@@ -388,6 +545,7 @@ export function LiveMemoryForm({
             </label>
             <textarea
               id={FIELD_IDS.body}
+              disabled={disabled}
               name="body"
               value={form.body}
               onChange={(event) => update('body', event.target.value)}
@@ -428,6 +586,7 @@ export function LiveMemoryForm({
             <input
               type="checkbox"
               checked={form.isPinned}
+              disabled={disabled}
               onChange={(event) => update('isPinned', event.target.checked)}
               className="h-5 w-5 accent-accent"
             />
@@ -435,25 +594,42 @@ export function LiveMemoryForm({
           </label>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button type="submit" className="btn-primary" disabled={disabled || photos.busy}>
-            {submitting ? '저장하는 중…' : isEdit ? '수정 내용 저장' : '기록 저장'}
-          </button>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => {
-              if (isDirty) {
-                setLeaveDialogOpen(true);
-                return;
-              }
-              void leave();
-            }}
-            className="btn-secondary"
-          >
-            취소
-          </button>
-        </div>
+        {savedMemory ? (
+          <PartialLinkNotice
+            memoryId={savedMemory.id}
+            problem={linkProblem}
+            submitting={submitting}
+            retryHref={link ? memoryLinkPath(savedMemory.id, link.ref) : null}
+          />
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" className="btn-primary" disabled={disabled || photos.busy}>
+              {submitting
+                ? link && linkEnabled
+                  ? '저장하고 연결하는 중…'
+                  : '저장하는 중…'
+                : isEdit
+                  ? '수정 내용 저장'
+                  : link && linkEnabled
+                    ? '기록 저장하고 연결'
+                    : '기록 저장'}
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                if (isDirty) {
+                  setLeaveDialogOpen(true);
+                  return;
+                }
+                void leave();
+              }}
+              className="btn-secondary"
+            >
+              취소
+            </button>
+          </div>
+        )}
 
         {photos.busy ? (
           <p className="text-xs leading-relaxed text-muted" role="status">
@@ -476,6 +652,65 @@ export function LiveMemoryForm({
         }}
       />
     </>
+  );
+}
+
+/**
+ * 부분 성공 안내 — 본문·사진은 저장됐고 연결만 남았을 때.
+ *
+ * 이 화면은 "모두 저장했어요"라고 말하지 않는다. 무엇이 끝났고 무엇이 남았는지 나눠서 적고,
+ * **연결만** 다시 시도하게 한다. 저장을 다시 눌러 같은 기록이 두 번 생기는 경로는 없다.
+ * 이 화면을 떠나거나 다시 로그인해도 상세 화면에서 연결을 이어 할 수 있도록 두 링크를 남긴다.
+ */
+function PartialLinkNotice({
+  memoryId,
+  problem,
+  submitting,
+  retryHref,
+}: {
+  memoryId: string;
+  problem: SaveProblem | null;
+  submitting: boolean;
+  /** 상세 화면의 연결 선택으로 이어 가는 경로(원본을 그대로 들고 간다). */
+  retryHref: string | null;
+}) {
+  return (
+    <ErrorNotice
+      role={problem ? 'alert' : 'status'}
+      title="기록과 사진은 저장했어요"
+      description={
+        problem
+          ? `계획과의 연결만 마치지 못했어요. ${problem.message}`
+          : '연결을 마무리하는 중이에요.'
+      }
+    >
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" className="btn-primary !min-h-[36px] text-xs" disabled={submitting}>
+            {submitting ? '연결하는 중…' : '연결만 다시 시도'}
+          </button>
+          {retryHref ? (
+            <a href={retryHref} className="btn-secondary !min-h-[36px] text-xs">
+              저장한 기록에서 연결 이어 하기
+            </a>
+          ) : null}
+          <a href={`/memories/${memoryId}`} className="btn-quiet !min-h-[36px] text-xs">
+            연결 없이 저장한 기록 보기
+          </a>
+        </div>
+        <p className="text-xs leading-relaxed">
+          다시 시도해도 같은 기록이 두 번 생기지 않아요. 이 화면을 닫거나 다시 로그인한 뒤에도
+          저장한 기록의 상세 화면에서 연결을 이어 할 수 있습니다.
+        </p>
+        <p className="text-xs leading-relaxed">
+          제목·날짜·장소·태그·이야기·사진·고정은 이미 저장돼 이 화면에서는 더 고칠 수 없어요. 내용을{' '}
+          <a href={`/memories/${memoryId}/edit`} className="underline">
+            저장한 기록의 수정 화면
+          </a>
+          에서 바꿔 주세요. 여기서 입력을 바꿔도 저장되지 않습니다.
+        </p>
+      </div>
+    </ErrorNotice>
   );
 }
 
