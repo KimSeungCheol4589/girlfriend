@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { formatKoreanDate } from '@/lib/dates';
 
-import { SOURCE_ICONS, SOURCE_LABELS, type MemoryLinkSource } from '../constants';
+import { SOURCE_ENTRY_LABELS, SOURCE_ICONS, type MemoryLinkSource } from '../constants';
 import { buildSourceQuery } from '../source';
 
 import type { SourceMemoriesResult } from '../types';
@@ -48,7 +48,7 @@ export function SourceMemoriesPanel({
         </h2>
         {done ? (
           <Link href={newMemoryHref} className="btn-primary !min-h-[40px] text-sm">
-            이 {SOURCE_LABELS[source].replace(/^(완료한|해낸)\s*/, '')}으로 기록 남기기
+            {SOURCE_ENTRY_LABELS[source]}
           </Link>
         ) : null}
       </div>
@@ -63,10 +63,11 @@ export function SourceMemoriesPanel({
       ) : null}
 
       {!result.ok ? (
+        // 실패를 "없음"으로 바꾸지 않는다. 없다고 보이면 같은 기록을 또 만들게 된다.
         <div className="mt-3">
           <ErrorNotice
             title="연결된 기록을 불러오지 못했어요"
-            description={`${result.message} 이 칸만 불러오지 못했고, 위의 내용은 정상이에요.`}
+            description={`${result.message} 연결된 기록이 없다는 뜻은 아니에요. 이 칸만 불러오지 못했고, 위의 내용은 정상입니다.`}
           />
         </div>
       ) : items.length === 0 ? (
@@ -98,6 +99,12 @@ export function SourceMemoriesPanel({
               </li>
             ))}
           </ul>
+          {result.truncated ? (
+            <p className="mt-3 text-xs leading-relaxed text-muted" role="status">
+              연결된 기록이 많아 최근 {items.length}개만 보여 주고 있어요. 나머지는 추억 목록에서
+              찾을 수 있어요.
+            </p>
+          ) : null}
           <p className="mt-3 text-xs leading-relaxed text-muted">
             연결된 기록이 있으면 이 항목은 지울 수 없어요. 먼저 위 기록에서 연결을 해제하거나 기록을
             지운 뒤에 다시 시도해 주세요.

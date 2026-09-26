@@ -27,6 +27,17 @@ export const SOURCE_ICONS: Record<MemoryLinkSource, string> = {
   wish: '✓',
 };
 
+/**
+ * 원본 상세의 기록 작성 버튼 문구.
+ *
+ * 라벨에서 조사를 기계적으로 붙이면 "일정으로/위시로"의 받침 차이를 틀린다.
+ * 문장을 통째로 적어 둔다.
+ */
+export const SOURCE_ENTRY_LABELS: Record<MemoryLinkSource, string> = {
+  event: '이 일정으로 기록 남기기',
+  wish: '이 위시로 기록 남기기',
+};
+
 export const SOURCE_PICKER_LABELS: Record<MemoryLinkSource, string> = {
   event: '완료한 일정에서 찾기',
   wish: '해낸 위시에서 찾기',
@@ -44,6 +55,14 @@ export function sourceDetailHref(source: MemoryLinkSource, sourceId: string): st
  * (추억 목록의 "더 보기"와 같은 방식).
  */
 export const LINK_CANDIDATE_PAGE_SIZE = 10;
+
+/**
+ * 원본 상세의 "데이트 기록" 목록 상한.
+ *
+ * 한 계획에 연결되는 기록은 보통 한두 개지만(추억당 연결은 최대 하나), 상한이 없으면
+ * 목록이 무제한으로 길어질 수 있다. 자를 때는 **조용히 자르지 않고** 화면에서 알린다.
+ */
+export const SOURCE_MEMORIES_LIMIT = 20;
 
 /** 후보 목록 커서 문자열의 상한. 형식이 어긋난 커서는 첫 페이지로 되돌리지 않고 빈 결과로 끝낸다. */
 export const LINK_CURSOR_MAX_LENGTH = 80;

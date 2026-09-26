@@ -12,6 +12,7 @@ import { todayInSeoul } from '@/lib/dates';
 
 import { SourceDraftCard } from '../../links/components/SourceDraftCard';
 import { LINK_CODE_MESSAGES } from '../../links/errors';
+import { shouldAttemptLink } from '../../links/link-attempt';
 import type { MemoryPrefill } from '../../links/prefill';
 import { linkMemoryPlanAction } from '../../links/server/actions';
 import { memoryLinkPath, type MemorySourceRef } from '../../links/source';
@@ -223,7 +224,13 @@ export function LiveMemoryForm({
    * 실패하면 저장된 기록을 지우지 않고 그대로 두고, 연결만 다시 시도할 수 있게 한다.
    */
   const runLink = async (saved: SavedMemory): Promise<void> => {
-    if (!link) return;
+    // 방어 분기. 연결 대상이 없거나 사용자가 "연결 없이 기록하기"를 고른 상태에서는
+    // 연결을 만들지 않는다. 여기서 그냥 돌아가면 submitting이 켜진 채로 남아 버튼이 잠기므로
+    // 반드시 되돌린다.
+    if (!link || !shouldAttemptLink({ hasLink: true, linkEnabled })) {
+      setSubmitting(false);
+      return;
+    }
     const input = {
       memoryId: saved.id,
       source: link.ref.source,
@@ -336,9 +343,12 @@ export function LiveMemoryForm({
         version: result.data.version,
         cleanup: result.data.cleanup,
       };
-      setSavedMemory(saved);
-
-      if (link && linkEnabled) {
+      // `savedMemory`는 **연결을 실제로 시도하는 경우에만** 둔다.
+      // 이 값이 있으면 화면이 부분 성공(저장됨 + 연결 남음) 상태가 되고 다시 제출하면
+      // 연결을 시도한다. 연결 없는 저장이나 사용자가 연결을 끈 저장에서 이 값을 두면
+      // 원하지 않은 연결이 생기거나 부분 성공 안내가 잘못 뜬다.
+      if (link && shouldAttemptLink({ hasLink: true, linkEnabled })) {
+        setSavedMemory(saved);
         await runLink(saved);
         inFlight.current = false;
         return;
@@ -423,6 +433,7 @@ export function LiveMemoryForm({
             </label>
             <input
               id={FIELD_IDS.title}
+              disabled={disabled}
               name="title"
               value={form.title}
               onChange={(event) => update('title', event.target.value)}
@@ -450,6 +461,7 @@ export function LiveMemoryForm({
               </label>
               <input
                 id={FIELD_IDS.memoryDate}
+              disabled={disabled}
                 name="memoryDate"
                 type="date"
                 value={form.memoryDate}
@@ -474,6 +486,7 @@ export function LiveMemoryForm({
               </label>
               <input
                 id={FIELD_IDS.location}
+              disabled={disabled}
                 name="location"
                 value={form.location}
                 onChange={(event) => update('location', event.target.value)}
@@ -497,6 +510,7 @@ export function LiveMemoryForm({
             </label>
             <input
               id={FIELD_IDS.tags}
+              disabled={disabled}
               name="tags"
               value={form.tagsInput}
               onChange={(event) => update('tagsInput', event.target.value)}
@@ -531,6 +545,7 @@ export function LiveMemoryForm({
             </label>
             <textarea
               id={FIELD_IDS.body}
+              disabled={disabled}
               name="body"
               value={form.body}
               onChange={(event) => update('body', event.target.value)}
@@ -685,6 +700,13 @@ function PartialLinkNotice({
         <p className="text-xs leading-relaxed">
           다시 시도해도 같은 기록이 두 번 생기지 않아요. 이 화면을 닫거나 다시 로그인한 뒤에도
           저장한 기록의 상세 화면에서 연결을 이어 할 수 있습니다.
+        </p>
+        <p className="text-xs leading-relaxed">
+          제목·날짜·장소·태그·이야기는 이미 저장돼 이 화면에서는 더 고칠 수 없어요. 내용을 바꾸려면{' '}
+          <a href={`/memories/${memoryId}/edit`} className="underline">
+            저장한 기록의 수정 화면
+          </a>
+          에서 고쳐 주세요. 여기서 입력을 바꿔도 저장되지 않습니다.
         </p>
       </div>
     </ErrorNotice>

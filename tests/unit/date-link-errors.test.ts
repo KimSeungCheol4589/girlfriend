@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { MEMORY_CODE_MESSAGES, isDefinitiveMemoryResult } from '@/features/memories/live/errors';
 import {
   LINK_CODE_MESSAGES,
-  SOURCE_DELETE_BLOCKED_MESSAGES,
   linkFailure,
   mapLinkRpcError,
 } from '@/features/memories/links/errors';
@@ -18,6 +17,9 @@ import {
  *   3. 연결이 실패했을 때 **기록과 사진은 남아 있다**는 사실을 알린다.
  *   4. DB 힌트 원문(`not_done`·`has_memories` 등)을 사용자에게 보여 주지 않는다.
  *   5. 응답이 확정적이면 다음 시도는 새 requestId를 쓴다.
+ *
+ * 원본(일정·위시) 삭제가 거부될 때의 안내는 각 기능의 실제 매퍼가 담당한다.
+ * 그 계약은 `tests/unit/date-source-delete-messages.test.ts`에서 확인한다.
  */
 
 function rpcError(code: string, details?: string) {
@@ -164,24 +166,5 @@ describe('기본 문장', () => {
   it('연결 문맥의 문장은 추억 저장 문장과 다르다', () => {
     expect(LINK_CODE_MESSAGES.CONFLICT).not.toBe(MEMORY_CODE_MESSAGES.CONFLICT);
     expect(LINK_CODE_MESSAGES.NOT_FOUND).not.toBe(MEMORY_CODE_MESSAGES.NOT_FOUND);
-  });
-});
-
-describe('원본 삭제 거부 안내 계약', () => {
-  /**
-   * 이 문장을 **쓰는 곳**은 캘린더·위시 화면의 오류 매퍼다(이 작업의 파일 범위 밖).
-   * 계약은 연결을 만든 쪽에서 정의해 두고, 반영은 승인 뒤 해당 파일에서 한다.
-   */
-  it('무엇을 먼저 정리해야 하는지 알려 준다', () => {
-    for (const message of Object.values(SOURCE_DELETE_BLOCKED_MESSAGES)) {
-      expect(message).toContain('지울 수 없어요');
-      expect(message).toMatch(/연결된 추억을 지우거나|연결을 해제/);
-      expect(message).not.toContain('has_memories');
-    }
-  });
-
-  it('일정과 위시를 구분한다', () => {
-    expect(SOURCE_DELETE_BLOCKED_MESSAGES['eventId:has_memories']).toContain('일정');
-    expect(SOURCE_DELETE_BLOCKED_MESSAGES['wishId:has_memories']).toContain('위시');
   });
 });

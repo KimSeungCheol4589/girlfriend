@@ -2,24 +2,24 @@
 /**
  * DATE-001 E2E 픽스처 준비·정리 — 로컬 Supabase 전용.
  *
- *   node tests/calendar/fixtures/cli.mjs setup
- *   node tests/calendar/fixtures/cli.mjs teardown
- *   node tests/calendar/fixtures/cli.mjs status
+ *   node tests/date/fixtures/cli.mjs setup
+ *   node tests/date/fixtures/cli.mjs teardown
+ *   node tests/date/fixtures/cli.mjs status
  *
- * 네임스페이스: 합성 계정 `calendar-e2e-{a,b,c}@test.invalid`만 만들고 지운다.
+ * 네임스페이스: 합성 계정 `date-e2e-{a,b,c}@test.invalid`만 만들고 지운다.
  *   - AUTH(`auth-e2e-*`)·MEM·FOOD(`food001-*`)·WISH(`wish-e2e-*`) 픽스처 계정은 읽지도 지우지도 않는다.
  *     접두사는 코드에 고정돼 있고 `AUTH_TEST_EMAIL_PREFIX` 환경 변수를 따르지 않는다.
  *   - 인증 픽스처의 안전장치(loopback 주소만, `.invalid` 도메인만, production 금지)를 그대로 쓴다
  *     (`tests/auth/fixtures/*.mjs`를 읽기 전용으로 가져온다).
- *   - 비밀번호는 실행마다 새로 만들고 `.agent-runtime/calendar-e2e/accounts.json`(Git 제외, 0600)에만 둔다.
+ *   - 비밀번호는 실행마다 새로 만들고 `.agent-runtime/date-e2e/accounts.json`(Git 제외, 0600)에만 둔다.
  *   - 키·비밀번호·초대 토큰은 어떤 출력에도 넣지 않는다.
  *   - 컨테이너를 만들거나 지우거나 재시작하지 않는다. 이미 떠 있는 DB 컨테이너에서 psql만 쓴다.
  *
  * setup이 만드는 상태
- *   A(calendar-e2e-a): 공간 생성 → B 초대 → B(calendar-e2e-b) 수락 → 두 사람 공간
- *   C(calendar-e2e-c): 별도 공간(외부 계정 역할)
- *   setup은 먼저 calendar-e2e 계정의 공간·요청 기록을 지워 매 실행을 같은 출발점에서 시작한다.
- *   (공간을 지우면 그 공간의 일정·위시도 cascade로 함께 사라진다.)
+ *   A(date-e2e-a): 공간 생성 → B 초대 → B(date-e2e-b) 수락 → 두 사람 공간
+ *   C(date-e2e-c): 별도 공간(외부 계정 역할)
+ *   setup은 먼저 date-e2e 계정의 공간·요청 기록을 지워 매 실행을 같은 출발점에서 시작한다.
+ *   (공간을 지우면 그 공간의 추억·일정·위시·연결도 cascade로 함께 사라진다.)
  */
 
 import { randomUUID } from 'node:crypto';
@@ -135,7 +135,7 @@ async function selectRows(config, token, path) {
 function requireSql(config) {
   if (!canRunSql(config)) {
     fail(
-      'AUTH_TEST_DB_CONTAINER가 필요합니다. 공간 생성 허용 목록 등록과 calendar-e2e 데이터 초기화를 로컬 DB 컨테이너의 psql로 합니다.',
+      'AUTH_TEST_DB_CONTAINER가 필요합니다. 공간 생성 허용 목록 등록과 date-e2e 데이터 초기화를 로컬 DB 컨테이너의 psql로 합니다.',
     );
   }
 }
@@ -149,7 +149,7 @@ function sqlLiteral(value) {
 }
 
 /**
- * 허용 목록에 calendar-e2e 계정이 남아 있지 않은지 DB에서 다시 확인한다.
+ * 허용 목록에 date-e2e 계정이 남아 있지 않은지 DB에서 다시 확인한다.
  * 남아 있으면 psql이 예외로 끝나 ok=false가 된다(출력 파싱에 기대지 않는다).
  */
 function verifyBootstrapRemoved(config, emails) {
@@ -158,13 +158,13 @@ function verifyBootstrapRemoved(config, emails) {
     config,
     `do $$ begin
        if exists (select 1 from app_private.bootstrap_creators where email in (${list})) then
-         raise exception 'calendar-e2e 계정이 공간 생성 허용 목록에 남아 있다';
+         raise exception 'date-e2e 계정이 공간 생성 허용 목록에 남아 있다';
        end if;
      end $$;`,
   );
 }
 
-/** calendar-e2e 계정의 공간·요청 기록이 남아 있지 않은지 확인한다. */
+/** date-e2e 계정의 공간·요청 기록이 남아 있지 않은지 확인한다. */
 function verifyDataPurged(config, emails) {
   const list = emails.map(sqlLiteral).join(', ');
   return runSql(
@@ -178,7 +178,7 @@ function verifyDataPurged(config, emails) {
                       where lower(u.email) in (${list}))
           or exists (select 1 from public.mutation_requests r join auth.users u on u.id = r.user_id
                       where lower(u.email) in (${list})) then
-         raise exception 'calendar-e2e 공간·일정·요청 기록이 남아 있다';
+         raise exception 'date-e2e 공간·기록이 남아 있다';
        end if;
      end $$;`,
   );
@@ -203,10 +203,10 @@ async function setup(config) {
 
   const emails = DATE_ACCOUNT_KEYS.map(dateEmail);
 
-  // 매 실행을 같은 출발점에서: calendar-e2e 계정의 공간(일정·위시 포함)과 요청 기록만 지운다.
+  // 매 실행을 같은 출발점에서: date-e2e 계정의 공간(일정·위시 포함)과 요청 기록만 지운다.
   // 공간 삭제가 calendar_events·wish_items를 cascade로 지우므로 별도 삭제문이 필요 없다.
-  checkSql(purgeSyntheticData(config, emails), 'calendar-e2e 기존 데이터 정리');
-  checkSql(verifyDataPurged(config, emails), 'calendar-e2e 기존 데이터 정리 확인');
+  checkSql(purgeSyntheticData(config, emails), 'date-e2e 기존 데이터 정리');
+  checkSql(verifyDataPurged(config, emails), 'date-e2e 기존 데이터 정리 확인');
 
   const accounts = {};
   for (const key of DATE_ACCOUNT_KEYS) {
@@ -279,7 +279,7 @@ async function teardown(config) {
   if (!purge.ok) problems.push(`공간·요청 기록 정리 실패(${purge.reason})`);
   const purged = verifyDataPurged(config, emails);
   if (!purged.ok) problems.push(`공간·요청 기록 정리 확인 실패(${purged.reason})`);
-  else console.log('calendar-e2e 공간·일정·요청 기록 정리 확인');
+  else console.log('date-e2e 공간·기록 정리 확인');
 
   problems.push(...removeBootstrap(config));
 
@@ -296,7 +296,7 @@ async function teardown(config) {
   for (const email of emails) {
     if (await findUserByEmail(config, email)) fail(`계정 삭제 확인 실패: ${email}`);
   }
-  console.log('calendar-e2e 계정 삭제 확인');
+  console.log('date-e2e 계정 삭제 확인');
 
   rmSync(ACCOUNTS_PATH, { force: true });
   console.log('저장한 계정 정보 파일 삭제');

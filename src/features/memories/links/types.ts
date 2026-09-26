@@ -111,5 +111,10 @@ export type SourceMemorySummary = {
  * 실패를 빈 목록으로 바꾸지 않는다. 연결이 사라진 것처럼 보이면 사용자가 같은 기록을 또 만든다.
  */
 export type SourceMemoriesResult =
-  | { ok: true; items: SourceMemorySummary[] }
+  | {
+      ok: true;
+      items: SourceMemorySummary[];
+      /** 상한에서 잘렸는지. true면 화면이 "더 있다"고 알린다(조용히 자르지 않는다). */
+      truncated: boolean;
+    }
   | { ok: false; message: string };

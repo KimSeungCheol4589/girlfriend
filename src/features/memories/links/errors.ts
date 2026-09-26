@@ -99,20 +99,6 @@ export function linkFailure(code: MemoryErrorCode, message?: string): MemoryActi
   return { ok: false, code, message: message ?? LINK_CODE_MESSAGES[code] };
 }
 
-/**
- * 원본 삭제가 거부됐을 때 화면이 보여 줄 안내.
- *
- * 이 문장을 **쓰는 곳**은 캘린더·위시 화면의 오류 매퍼다(이 작업의 소유 범위 밖이다).
- * 연결을 만든 쪽에서 계약을 정의해 두고, 반영은 총괄 승인 뒤 해당 파일에서 한다.
- * 인수인계의 "필요한 외부 파일"에 정확한 위치를 남긴다.
- */
-export const SOURCE_DELETE_BLOCKED_MESSAGES = {
-  'eventId:has_memories':
-    '이 일정으로 남긴 데이트 기록이 있어 일정을 지울 수 없어요. 먼저 연결된 추억을 지우거나 연결을 해제해 주세요.',
-  'wishId:has_memories':
-    '이 위시로 남긴 데이트 기록이 있어 위시를 지울 수 없어요. 먼저 연결된 추억을 지우거나 연결을 해제해 주세요.',
-} as const;
-
 /** 서버 로그. 작업 이름·오류 코드·요청 ID만 남긴다(DESIGN.md 11). */
 export function logLinkFailure(operation: string, code: MemoryErrorCode, requestId?: string): void {
   const parts = [`memoryLinks.${operation}`, `code=${code}`];

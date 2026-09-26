@@ -28,6 +28,19 @@ import {
 
 const accounts = loadDateAccounts();
 
+/** 위시·일정의 현재 version을 읽는다. 상수 버전에 기대지 않는다(완료 전환으로 올라간다). */
+async function currentVersion(
+  client: Awaited<ReturnType<typeof userClient>>,
+  table: 'wish_items' | 'calendar_events',
+  id: string,
+): Promise<number> {
+  const { data, error } = await client.from(table).select('version').eq('id', id).maybeSingle();
+  if (error || !data) throw new Error(`${table} version을 읽지 못했습니다.`);
+  const version = (data as { version: unknown }).version;
+  if (typeof version !== 'number') throw new Error(`${table} version 형식이 다릅니다.`);
+  return version;
+}
+
 async function createMemory(account: typeof accounts.a, title: string): Promise<{ id: string; version: number }> {
   const client = await userClient(account);
   const saved = await callRpc(client, 'save_memory', {
@@ -62,9 +75,13 @@ test('연결된 기록이 있으면 위시를 지울 수 없고, 기록을 지�
     .version;
 
   // 1. 연결이 있는 동안에는 위시 삭제가 거부된다.
+  //    version은 완료 전환으로 이미 올라가 있으므로 실제 값을 읽어서 보낸다.
+  //    상수(1)를 보내면 has_memories가 아니라 expectedVersion 충돌로 거부돼 계약을 확인하지 못한다.
+  const wishVersion = await currentVersion(client, 'wish_items', wishId);
+  expect(wishVersion, '완료 전환으로 version이 올라가 있다').toBeGreaterThan(1);
   const blocked = await callRpc(client, 'delete_wish', {
     p_wish_id: wishId,
-    p_expected_version: 1,
+    p_expected_version: wishVersion,
     p_request_id: newRequestId(),
   });
   const blockedFailure = assertRpcFailed(blocked, '연결된 위시 삭제');
@@ -86,7 +103,7 @@ test('연결된 기록이 있으면 위시를 지울 수 없고, 기록을 지�
   // 3. 연결이 없어졌으므로 이제 지울 수 있다.
   const deleted = await callRpc(client, 'delete_wish', {
     p_wish_id: wishId,
-    p_expected_version: 1,
+    p_expected_version: await currentVersion(client, 'wish_items', wishId),
     p_request_id: newRequestId(),
   });
   assertRpcOk(deleted, '연결이 사라진 뒤 위시 삭제');
@@ -106,9 +123,10 @@ test('연결된 기록이 있으면 일정도 지울 수 없다', async () => {
   });
   assertRpcOk(linked, '완료한 일정에 연결');
 
+  const eventVersion = await currentVersion(client, 'calendar_events', eventId);
   const blocked = await callRpc(client, 'delete_calendar_event', {
     p_event_id: eventId,
-    p_expected_version: 2,
+    p_expected_version: eventVersion,
     p_request_id: newRequestId(),
   });
   const failure = assertRpcFailed(blocked, '연결된 일정 삭제');

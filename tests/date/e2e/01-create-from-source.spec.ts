@@ -51,7 +51,8 @@ test('해낸 위시에서 기록을 남기면 위시 상세에서 다시 찾을 
   await expect(titleField).toHaveValue(wishTitle);
 
   await page.getByRole('button', { name: /저장/ }).first().click();
-  await page.waitForURL(/\/memories\/[0-9a-f-]{36}$/);
+  // 저장 후에는 `?notice=saved-linked`(또는 정리 대기 변형)가 붙는다. 쿼리를 허용한다.
+  await page.waitForURL(/\/memories\/[0-9a-f-]{36}(?:\?notice=[a-z-]+)?$/);
   const memoryId = memoryIdFromUrl(page);
 
   await gotoWishDetail(page, wishId);

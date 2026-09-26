@@ -14,6 +14,7 @@ import { formatKoreanDate, isCalendarDate } from '@/lib/dates';
 import { isUuid } from '../../live/ids';
 import {
   LINK_CANDIDATE_PAGE_SIZE,
+  SOURCE_MEMORIES_LIMIT,
   isMemoryLinkSource,
   sourceDetailHref,
   type MemoryLinkSource,
@@ -372,7 +373,7 @@ export async function listSourceMemories(
   sourceId: string,
 ): Promise<SourceMemoriesResult> {
   if (!isMemoryLinkSource(source) || !isUuid(sourceId)) {
-    return { ok: true, items: [] };
+    return { ok: true, items: [], truncated: false };
   }
 
   const scope = await memberScope();
@@ -389,7 +390,9 @@ export async function listSourceMemories(
     .from('memory_links')
     .select('memory_id')
     .eq('space_id', scope.spaceId)
-    .eq(column, sourceId);
+    .eq(column, sourceId)
+    // 상한 + 1을 읽어 "더 있는지"를 판단한다. 조용히 자르지 않는다.
+    .limit(SOURCE_MEMORIES_LIMIT + 1);
   if (links.error) {
     logQueryFailure('listSourceMemories.links', links.error.code);
     return { ok: false, message: LINK_FAILED };
@@ -400,20 +403,22 @@ export async function listSourceMemories(
     const id = row.memory_id;
     if (typeof id === 'string' && isUuid(id)) memoryIds.push(id);
   }
-  if (memoryIds.length === 0) return { ok: true, items: [] };
+  if (memoryIds.length === 0) return { ok: true, items: [], truncated: false };
+  const truncated = memoryIds.length > SOURCE_MEMORIES_LIMIT;
+  const pageIds = truncated ? memoryIds.slice(0, SOURCE_MEMORIES_LIMIT) : memoryIds;
 
   // RLS가 같은 공간만 돌려준다. 공간 조건을 한 번 더 걸어 의도를 드러낸다.
   const memories = await supabase
     .from('memories')
     .select('id, title, memory_date')
     .eq('space_id', scope.spaceId)
-    .in('id', memoryIds);
+    .in('id', pageIds);
   if (memories.error) {
     logQueryFailure('listSourceMemories.memories', memories.error.code);
     return { ok: false, message: LINK_FAILED };
   }
 
-  const photos = await supabase.from('memory_photos').select('memory_id').in('memory_id', memoryIds);
+  const photos = await supabase.from('memory_photos').select('memory_id').in('memory_id', pageIds);
   if (photos.error) {
     logQueryFailure('listSourceMemories.photos', photos.error.code);
     return { ok: false, message: LINK_FAILED };
@@ -443,5 +448,5 @@ export async function listSourceMemories(
       : b.memoryDate.localeCompare(a.memoryDate),
   );
 
-  return { ok: true, items };
+  return { ok: true, items, truncated };
 }
