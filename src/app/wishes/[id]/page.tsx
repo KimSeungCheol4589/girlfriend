@@ -5,6 +5,7 @@ import { LivePageFrame } from '@/features/auth/components/LivePageFrame';
 import { isDemoMode } from '@/features/auth/mode';
 import { QueryErrorNotice } from '@/features/wishes/components/QueryErrorNotice';
 import { WishDetailView } from '@/features/wishes/components/WishDetailView';
+import { listSourceMemories } from '@/features/memories/links/server/queries';
 import { getWishDetail } from '@/features/wishes/queries';
 
 export const metadata: Metadata = {
@@ -20,7 +21,9 @@ async function WishDetail({ id }: { id: string }) {
   if (result.status === 'error') {
     return <QueryErrorNotice title="위시를 불러오지 못했어요" message={result.message} />;
   }
-  return <WishDetailView wish={result.wish} />;
+  // 연결된 데이트 기록은 위시 본문과 별개로 읽는다. 실패해도 상세 자체는 보여 준다.
+  const dateRecords = await listSourceMemories('wish', result.wish.id);
+  return <WishDetailView wish={result.wish} dateRecords={dateRecords} />;
 }
 
 export default async function WishDetailPage({ params }: { params: Promise<{ id: string }> }) {

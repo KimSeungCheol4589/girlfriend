@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+import { SourceMemoriesPanel } from '@/features/memories/links/components/SourceMemoriesPanel';
+import type { SourceMemoriesResult } from '@/features/memories/links/types';
 import { formatKoreanDate } from '@/lib/dates';
 
 import { safeLinkHref } from '../schema';
@@ -14,7 +16,14 @@ import type { WishDetail } from '../types';
  * 위시 상세. 사용자 입력(제목·메모)은 일반 텍스트로만 그린다(DESIGN 5.3).
  * 링크는 규칙을 통과한 https 주소일 때만 링크로 만들고 새 창에서 연다. 서버가 내용을 가져오지 않는다.
  */
-export function WishDetailView({ wish }: { wish: WishDetail }) {
+export function WishDetailView({
+  wish,
+  dateRecords,
+}: {
+  wish: WishDetail;
+  /** 이 위시로 남긴 데이트 기록(DATE-001). 조회 실패도 그대로 전달한다. */
+  dateRecords: SourceMemoriesResult;
+}) {
   const linkHref = safeLinkHref(wish.linkUrl);
 
   return (
@@ -84,6 +93,13 @@ export function WishDetailView({ wish }: { wish: WishDetail }) {
         status={wish.status}
         plannedDate={wish.plannedDate}
         version={wish.version}
+      />
+
+      <SourceMemoriesPanel
+        source="wish"
+        sourceId={wish.id}
+        done={wish.status === 'done'}
+        result={dateRecords}
       />
     </div>
   );

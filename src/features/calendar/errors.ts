@@ -70,6 +70,12 @@ const DETAILED_MESSAGES: Record<string, string> = {
     '같은 요청 번호로 다른 내용을 보냈어요. 화면을 새로 불러온 뒤 다시 시도해 주세요.',
   'CONFLICT:wishItemId:gone':
     '연결하려던 위시가 방금 사라졌어요. 위시 연결을 비우거나 다른 위시를 고른 뒤 다시 저장해 주세요.',
+  /*
+   * DATE-001. 이 일정으로 남긴 데이트 기록이 있으면 일정을 지우지 않고 거부한다(연쇄 삭제 금지).
+   * 완료한 일정은 기록의 출처로 남아야 하므로, 기록을 먼저 정리하게 안내한다.
+   */
+  'CONFLICT:eventId:has_memories':
+    '이 일정으로 남긴 데이트 기록이 있어 지울 수 없어요. 아래 "데이트 기록"에서 연결을 해제하거나 그 기록을 먼저 지운 뒤 다시 시도해 주세요.',
   'RETRYABLE_ERROR:requestId:in_progress':
     '같은 요청을 처리하는 중이에요. 잠시 후 같은 내용으로 다시 시도해 주세요.',
   'NOT_FOUND:space:not_member': '공간에 참여한 계정만 일정을 다룰 수 있어요.',

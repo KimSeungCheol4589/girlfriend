@@ -7,6 +7,7 @@ import { EventDetailView } from '@/features/calendar/components/EventDetailView'
 import { QueryErrorNotice } from '@/features/calendar/components/QueryErrorNotice';
 import { parseCalendarBackHref } from '@/features/calendar/filters';
 import { getCalendarEventDetail } from '@/features/calendar/queries';
+import { listSourceMemories } from '@/features/memories/links/server/queries';
 
 export const metadata: Metadata = {
   title: '일정 상세',
@@ -21,7 +22,11 @@ async function EventDetail({ id, calendarHref }: { id: string; calendarHref: str
   if (result.status === 'error') {
     return <QueryErrorNotice title="일정을 불러오지 못했어요" message={result.message} />;
   }
-  return <EventDetailView event={result.event} calendarHref={calendarHref} />;
+  // 연결된 데이트 기록은 일정 본문과 별개로 읽는다. 실패해도 상세 자체는 보여 준다.
+  const dateRecords = await listSourceMemories('event', result.event.id);
+  return (
+    <EventDetailView event={result.event} calendarHref={calendarHref} dateRecords={dateRecords} />
+  );
 }
 
 export default async function CalendarEventPage({

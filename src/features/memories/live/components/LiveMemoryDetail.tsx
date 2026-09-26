@@ -10,6 +10,8 @@ import { ErrorNotice } from '@/components/ErrorNotice';
 import { buildMemoriesHref } from '@/features/memories/filters';
 import { formatKoreanDate, monthKey } from '@/lib/dates';
 
+import { MemoryLinkPanel } from '../../links/components/MemoryLinkPanel';
+import type { LinkedSourceView } from '../../links/types';
 import { deleteMemoryAction, setMemoryPinnedAction } from '../../server/actions';
 import { memoryPhotoUrl } from '../constants';
 import {
@@ -21,7 +23,26 @@ import {
 import { createRequestKeyTracker } from '../request-key';
 import type { LiveMemory } from '../types';
 
-export type DetailNotice = 'saved' | 'saved-cleanup-pending' | null;
+export type DetailNotice =
+  | 'saved'
+  | 'saved-cleanup-pending'
+  | 'saved-linked'
+  | 'saved-linked-cleanup-pending'
+  | 'linked'
+  | 'unlinked'
+  | null;
+
+/** 저장·연결 결과 안내. 무엇이 끝났는지 나눠서 적는다(부분 성공을 뭉개지 않는다). */
+const NOTICE_MESSAGES: Record<Exclude<DetailNotice, null>, string> = {
+  saved: '저장했어요. 상대방이 이 화면을 새로 열면 같은 내용이 보입니다.',
+  'saved-cleanup-pending':
+    '저장했어요. 상대방이 이 화면을 새로 열면 같은 내용이 보입니다. 뺀 사진 파일 정리는 끝나지 않아 나중에 다시 정리합니다(다른 사람에게는 보이지 않아요).',
+  'saved-linked': '저장하고 계획과 연결했어요. 상대방이 이 화면을 새로 열면 같은 내용이 보입니다.',
+  'saved-linked-cleanup-pending':
+    '저장하고 계획과 연결했어요. 뺀 사진 파일 정리는 끝나지 않아 나중에 다시 정리합니다(다른 사람에게는 보이지 않아요).',
+  linked: '계획과 연결했어요. 계획의 날짜·상태는 바뀌지 않았습니다.',
+  unlinked: '연결을 해제했어요. 기록과 사진, 계획은 모두 그대로 있습니다.',
+};
 
 function LivePhoto({ assetId, alt, priority, sizes, className }: {
   assetId: string;
@@ -134,10 +155,16 @@ export function LiveMemoryDetail({
   memory,
   authorName,
   notice,
+  linkView,
+  linkQueryError,
 }: {
   memory: LiveMemory;
   authorName: string;
   notice: DetailNotice;
+  /** 연결한 계획. 없으면 null. */
+  linkView: LinkedSourceView | null;
+  /** 연결 조회 자체가 실패했을 때의 문장. "연결 없음"과 구분한다. */
+  linkQueryError: string | null;
 }) {
   const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -210,12 +237,9 @@ export function LiveMemoryDetail({
         </Link>
       </nav>
 
-      {notice === 'saved' || notice === 'saved-cleanup-pending' ? (
+      {notice ? (
         <p role="status" className="rounded-card border border-border bg-surface-muted px-4 py-3 text-sm text-text">
-          저장했어요. 상대방이 이 화면을 새로 열면 같은 내용이 보입니다.
-          {notice === 'saved-cleanup-pending'
-            ? ' 뺀 사진 파일 정리는 끝나지 않아 나중에 다시 정리합니다(다른 사람에게는 보이지 않아요).'
-            : ''}
+          {NOTICE_MESSAGES[notice]}
         </p>
       ) : null}
 
@@ -287,6 +311,13 @@ export function LiveMemoryDetail({
         </section>
       ) : null}
 
+      <MemoryLinkPanel
+        memoryId={memory.id}
+        memoryVersion={memory.version}
+        view={linkView}
+        queryError={linkQueryError}
+      />
+
       <div className="flex flex-wrap gap-2 border-t border-border pt-5">
         <Link href={`/memories/${memory.id}/edit`} className="btn-primary">
           수정
@@ -313,7 +344,12 @@ export function LiveMemoryDetail({
       <ConfirmDialog
         open={deleteOpen}
         title="이 기록을 지울까요?"
-        description={`‘${memory.title}’과(와) 함께 붙은 사진 ${memory.photos.length}장도 같이 지워집니다. 두 사람 모두에게서 사라지고 되돌릴 수 없어요.`}
+        description={
+          `‘${memory.title}’과(와) 함께 붙은 사진 ${memory.photos.length}장도 같이 지워집니다. ` +
+          '두 사람 모두에게서 사라지고 되돌릴 수 없어요.' +
+          // DESIGN 5.3: 추억을 지워도 연결한 일정·위시는 유지된다.
+          (linkView ? ' 연결한 일정·위시는 지워지지 않고 그대로 남아요.' : '')
+        }
         confirmLabel="삭제"
         onCancel={() => setDeleteOpen(false)}
         onConfirm={handleDelete}

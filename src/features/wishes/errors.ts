@@ -50,6 +50,13 @@ const DETAILED_MESSAGES: Record<string, string> = {
    */
   'CONFLICT:wishId:has_calendar_events':
     '이 위시로 만든 캘린더 일정이 있어 지울 수 없어요. 캘린더에서 연결된 일정을 먼저 지우거나 일정의 위시 연결을 해제한 뒤 다시 시도해 주세요.',
+  /*
+   * DATE-001. 이 위시로 남긴 데이트 기록이 있으면 위시를 지우지 않고 거부한다(연쇄 삭제 금지).
+   * 위시 상세의 "데이트 기록" 칸에 연결된 기록이 목록으로 보이므로, 무엇을 먼저 정리해야 하는지
+   * 사용자가 바로 확인할 수 있다.
+   */
+  'CONFLICT:wishId:has_memories':
+    '이 위시로 남긴 데이트 기록이 있어 지울 수 없어요. 아래 "데이트 기록"에서 연결을 해제하거나 그 기록을 먼저 지운 뒤 다시 시도해 주세요.',
   'RETRYABLE_ERROR:requestId:in_progress':
     '같은 요청을 처리하는 중이에요. 잠시 후 같은 내용으로 다시 시도해 주세요.',
   'NOT_FOUND:space:not_member': '공간에 참여한 계정만 위시를 다룰 수 있어요.',

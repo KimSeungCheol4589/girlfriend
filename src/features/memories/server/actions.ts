@@ -1,11 +1,6 @@
 'use server';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
-
-import { getSessionContext } from '@/features/auth/queries';
-import { isSupabaseConfigError } from '@/lib/supabase/config';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 import { parseMemoryFilters } from '../filters';
 import { MEMORY_BUCKET, type MemoryUploadMime } from '../live/constants';
@@ -14,7 +9,6 @@ import {
   logMemoryFailure,
   mapMemoryRpcError,
   memoryFailure,
-  type MemoryActionFailure,
   type MemoryActionResult,
 } from '../live/errors';
 import { PHOTO_REJECT_MESSAGES } from '../live/image-policy';
@@ -41,6 +35,7 @@ import { removeDeletingObjects } from './cleanup';
 import { expectedObjectPath, parseDetachedAssets } from './cleanup-plan';
 import { finalizeOwnedMemoryPhoto } from './finalize-core';
 import type { VerifyResult } from './image-verify';
+import { requireMemberSession } from './member-session';
 import { listMemoriesPage } from './queries';
 import { createServiceClient, isPhotoPipelineConfigured, serviceStorageRequest } from './service-client';
 
@@ -54,25 +49,9 @@ import { createServiceClient, isPhotoPipelineConfigured, serviceStorageRequest }
  *   - service_role(별도 워커 클라이언트)은 업로드 확정(사용자 RLS로 소유 확인 뒤, 읽기 전용 검증)과
  *     DB가 알려 준 `deleting` 파일 정리에만 쓴다.
  *   - 로그에는 작업 이름·오류 코드·요청 ID만 남긴다.
+ *
+ * 세션 검사는 `./member-session.ts`에 있다(연결 액션과 같은 구현을 쓴다).
  */
-
-type Member = { client: SupabaseClient; userId: string; spaceId: string };
-
-async function requireMemberSession(): Promise<{ ok: true; member: Member } | MemoryActionFailure> {
-  const context = await getSessionContext();
-  if (context.status === 'unconfigured') return memoryFailure('CONFIG_ERROR');
-  if (context.status === 'anonymous') return memoryFailure('UNAUTHENTICATED');
-  if (context.status === 'no_space') return memoryFailure('NOT_FOUND');
-
-  let client: SupabaseClient;
-  try {
-    client = await createSupabaseServerClient();
-  } catch (error) {
-    if (isSupabaseConfigError(error)) return memoryFailure('CONFIG_ERROR');
-    throw error;
-  }
-  return { ok: true, member: { client, userId: context.user.id, spaceId: context.space.id } };
-}
 
 function revalidateMemoryScreens(): void {
   // 목록·상세·편집·홈 요약이 모두 같은 데이터를 쓴다. 이전 사용자의 화면을 재사용하지 않도록 전부 비운다.
