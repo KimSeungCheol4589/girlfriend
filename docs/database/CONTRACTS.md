@@ -240,10 +240,11 @@ DESIGN `saveMemory`. 본문과 사진 연결을 한 트랜잭션으로 저장한
 
 - 행을 잠그고 현재 version을 확인한 뒤 삭제한다. 확인 화면을 연 뒤 다른 변경이 생기면 `GF409`로 거부한다.
 - 연결된 일정이 있으면 삭제하지 않고 `GF409 {"wishId":"has_calendar_events"}`를 반환한다. 위시 행 잠금과 일정의 FK 잠금으로 새 연결과 삭제를 직렬화한다.
+- 연결된 데이트 기록이 있으면 삭제하지 않고 `GF409 {"wishId":"has_memories"}`를 반환한다(DATE-001). 연쇄 삭제하지 않는다. 먼저 기록의 연결을 해제하거나 기록을 지워야 한다.
 - 반환: `{"wishId"}`
 - 오류: `GF401`, `GF404`, `GF409`
 
-### 4.2 커플 캘린더
+## 4.2 커플 캘린더
 
 `calendar_events`는 본인 공간의 개인·공동 일정을 담는다. 두 구성원 모두 모든 일정을 조회하지만, 개인 일정은 소유자만 변경하고 공동 일정은 두 구성원 모두 변경한다. `authenticated`와 `service_role`에는 SELECT만 허용하며 모든 변경은 아래 RPC를 통한다.
 
@@ -266,10 +267,39 @@ DESIGN `saveMemory`. 본문과 사진 연결을 한 트랜잭션으로 저장한
 ### `delete_calendar_event(p_event_id uuid, p_expected_version integer, p_request_id uuid) → jsonb`
 
 - 현재 version과 권한을 확인하고 일정만 삭제한다. 연결한 위시는 유지된다.
+- 연결된 데이트 기록이 있으면 삭제하지 않고 `GF409 {"eventId":"has_memories"}`를 반환한다(DATE-001). 연쇄 삭제하지 않는다.
 - 반환: `{"eventId"}`
 - 오류: `GF401`, `GF403`, `GF404`, `GF409`
 
 조회는 `(space_id, starts_at, id)` 인덱스를 사용한다. 월 범위는 한국 시간 기준 이번 달 0시 이상, 다음 달 0시 미만과 겹치는 일정이며 최대 500건이다. 상한을 넘으면 화면에서 일부 결과임을 알린다.
+
+---
+
+## 4.3 데이트 기록 연결 (DATE-001)
+
+`memory_links`는 **완료한 계획**(해낸 위시·완료한 일정)과 사진 추억을 잇는다. `authenticated`·`service_role`에는 SELECT만 허용하고 변경은 아래 RPC로만 한다.
+
+설계 결정과 이유:
+
+- **추억당 최대 한 행, 원본은 정확히 하나.** `memory_id`가 PK이고 `memory_links_exactly_one_source` CHECK가 `source`에 맞는 열 하나만 채우도록 강제한다. DESIGN 5.2의 "둘 중 하나 이상"보다 좁은 규칙이다. 한 기록이 여러 계획을 가리키면 "이 데이트가 무엇이었나"가 흐려지고 원본 삭제 판정도 복잡해진다.
+- **같은 공간만.** `space_id` 열과 `(id, space_id)` 복합 FK 세 개(추억·일정·위시)로 DB가 막는다. RPC 검사에만 기대지 않는다.
+- **완료 상태 검사는 연결 시점의 규칙이다.** 연결하려는 원본이 `done`이 아니면 `GF409 {"eventId":"not_done"}` / `{"wishId":"not_done"}`로 거부한다. 이미 연결된 뒤 원본이 다시 `scheduled`로 돌아가는 것은 이 제약이 막지 않는다(기록 자체는 남아야 한다).
+- **연결·해제는 추억의 version을 올린다.** 연결 전 스냅샷으로 저장·고정·삭제를 시도하면 `GF409`가 되어 조용한 덮어쓰기를 막는다(DESIGN 8.4).
+- **원본 삭제는 거부한다.** 연쇄 삭제하지 않는다. 위 `delete_wish`·`delete_calendar_event` 참고.
+- **추억 삭제는 링크만 지운다.** 추억→링크는 `on delete cascade`이고 원본은 그대로 남는다.
+
+### `link_memory_plan(p_memory_id uuid, p_source text, p_source_id uuid, p_expected_version integer, p_request_id uuid) → jsonb`
+
+- 추억과 원본을 모두 잠그고 같은 공간·완료 상태를 확인한 뒤 연결을 만들거나 바꾼다.
+- 이미 같은 원본에 연결돼 있으면 아무것도 바꾸지 않고 그 사실을 알린다.
+- 반환: `{"memoryId","version","source","sourceId","replacedPreviousLink","alreadyLinked"}`
+- 오류: `GF401`, `GF404`, `GF409`(`expectedVersion:stale`, `eventId:not_done`, `wishId:not_done`, `eventId:gone`, `wishId:gone`), `GF422`
+
+### `unlink_memory_plan(p_memory_id uuid, p_expected_version integer, p_request_id uuid) → jsonb`
+
+- 연결만 지운다. 추억과 원본은 모두 남는다. 연결이 없으면 `GF404`.
+- 반환: `{"memoryId","version","source","sourceId"}`
+- 오류: `GF401`, `GF404`, `GF409`
 
 ---
 
@@ -313,10 +343,13 @@ DESIGN `saveMemory`. 본문과 사진 연결을 한 트랜잭션으로 저장한
 | `restaurant_reviews` | 본인 공간(두 사람 모두 조회) | `(restaurant_id)` |
 | `wish_items` | 본인 공간 | `(space_id, status, created_at desc, id desc)` |
 | `calendar_events` | 본인 공간의 모든 개인·공동 일정 | `(space_id, starts_at, id)`, 연결 위시는 `(wish_item_id) where not null` |
+| `memory_links` | 본인 공간 | `memory_id` PK, 원본별 조회는 `(calendar_event_id)` / `(wish_item_id)` |
 | `assets` | 업로더 본인, 또는 `ready`이면서 실제로 기록·커버에 연결된 것 | `(space_id, purpose, state)` |
 | `space_invites`, `mutation_requests` | **조회 불가** | — |
 
-커서 페이지네이션은 DESIGN 3절대로 `(memory_date, id)` / `(created_at, id)` 쌍을 쓴다.
+커서 페이지네이션은 DESIGN 3절대로 `(memory_date, id)` / `(created_at, id)` 쌍을 쓴다. 연결 후보 목록의 커서는 `<timestamptz>|<uuid>` 문자열이며, 형식 검사를 통과한 값만 PostgREST 필터에 넣고 타임스탬프는 따옴표로 감싼다.
+
+원본 상세의 "데이트 기록" 목록은 최대 20건까지 읽고, 더 있으면 화면에서 일부 결과임을 알린다(조용히 자르지 않는다).
 
 ## 6.1 Storage 접근 (`space-assets` 비공개 버킷)
 
