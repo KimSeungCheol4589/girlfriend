@@ -133,3 +133,5 @@ DB 담당은 최신 dev에서 codex/auth-foundation 브랜치로 시작한다. �
 - 상태: blocked (Vercel/Supabase 사용자 가입·로그인 대기). 로컬 사전 조사와 docs/PRIVATE_LAUNCH.md 준비 완료. 제품 변경·클라우드 자원 생성·배포는 아직 없음.
 - Codex: 운영 구성·계정 연결·검증·출시 관리. 코드 변경 필요 시 Claude 구현 및 새 독립 검토 원칙 유지.
 - main 승격·자동 배포 브랜치는 별도 확정. 기존 자동화는 PAUSED 유지; 로그인 대기를 반복 호출하지 않는다.
+
+- PRIVATE-LAUNCH-001 진행 갱신: 사용자 서비스 가입 완료, Next.js 설정 확인, 공개 가입 차단 완료. 사용자 명시 승인에 따라 main을 e2a447b로 승격·원격 확인. Vercel 빌드 진행 중이며 운영 DB/환경 변수/두 사용자/메일/접근 검증은 남음. 자동화 PAUSED 유지.

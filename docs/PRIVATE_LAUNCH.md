@@ -67,3 +67,12 @@ Supabase 기본 메일은 프로젝트 팀 주소로 수신이 제한되므로 �
 - [Supabase SMTP](https://supabase.com/docs/guides/auth/auth-smtp)
 
 계정·인증 준비 전에는 배포 완료로 표시하지 않는다. 후속 공개 가입 확장은 별도 작업이다.
+
+## 2026-09-26 사용자 승인에 따른 출시 진행
+
+- 사용자가 Vercel/Supabase 가입·프로젝트 생성을 완료했다. Vercel `ksclove4589-1067/girlfriend`, Supabase `geufwhgbchcouqwtehld`.
+- 사용자의 명시적 main 승격 승인 후 검증된 MVP와 준비 문서 `e2a447b1ff3e9c9f37ea789307ed3a6e34b38f65`를 원격 main에 fast-forward push했다. 개발 checkout은 dev 유지.
+- Vercel Framework Next.js 저장 확인, Node22 설정 저장. 실제 빌드 런타임은 package.json engines 범위 때문에 별도 확인 필요.
+- Supabase 공개 신규 가입 OFF 저장 및 재조회 확인. 운영 migration·키 연결·두 사용자 계정·SMTP·접근 제어 실검증은 미완료.
+- Vercel 빌드 `Dxdv1xNg9ZWzu1pHmuac1NxDkYtJ` 생성 확인. 배포 성공과 서비스 출시 완료는 별도 판정한다.
+- 배포 결과: Ready, 약 1분17초. https://girlfriend-ruddy.vercel.app 에서 실제 앱의 ‘설정이 필요합니다’ 화면 확인. 운영 Supabase URL/공개 키가 없어 로그인·공간 사용은 차단됨. 배포 성공이며 아직 서비스 출시 완료 아님.
