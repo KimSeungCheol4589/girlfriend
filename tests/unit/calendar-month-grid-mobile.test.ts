@@ -71,9 +71,20 @@ function chipStaticClasses(): string[] {
     .filter((token) => token.length > 0);
 }
 
+/**
+ * 칩 안에 있는 `sr-only` **요소**의 개수.
+ *
+ * 마크업에서 `sr-only`라는 **글자**를 찾으면 주석만 있어도 통과한다(독립 검토 지적). 그래서
+ * `className="sr-only"`를 가진 `<span>` 여는 태그만 센다.
+ */
+function srOnlyBadgeCount(): number {
+  return chipMarkup().match(/<span\s+className="sr-only">/g)?.length ?? 0;
+}
+
 describe('월 보기 일정 칩', () => {
   it('절대 배치 배지를 품고 있다 (이 조건이 있어야 아래 고정이 의미가 있다)', () => {
-    expect(chipMarkup()).toContain('sr-only');
+    // 배지가 하나도 없으면 아래 `relative` 고정은 지킬 이유가 없어진다.
+    expect(srOnlyBadgeCount(), '칩 안에 sr-only 배지가 있어야 한다').toBeGreaterThan(0);
   });
 
   it('자르기와 컨테이닝 블록을 함께 가진다 (truncate + relative)', () => {
