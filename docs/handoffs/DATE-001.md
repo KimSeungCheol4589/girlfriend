@@ -1,4 +1,4 @@
-# DATE-001 인계 — 독립 재검토 P2 반영, 재검토 대기
+# DATE-001 인계 — QA 보강 실행 결과 반영, 재검토 대기
 
 갱신: 2026-09-26. 브랜치 `codex/date-records`. **재검토 전 / dev 통합 불가**.
 
@@ -109,6 +109,62 @@
 | 연결·해제가 **추억 version을 올림** | 연결 전 스냅샷으로 저장·고정·삭제하면 조용한 덮어쓰기가 된다(DESIGN 8.4) | 오래된 스냅샷의 요청은 `GF409` |
 | 완료 상태 검사는 **연결 시점** 규칙 | 이미 남긴 기록은 원본이 다시 예정으로 바뀌어도 유지돼야 한다 | 연결 시 `not_done` 거부, 이후 상태 변화는 막지 않는다 |
 
+## QA 보강 실행에서 나온 두 건 (2026-09-26)
+
+총괄이 QA 보강 스위트를 실제로 돌려 나온 실패 두 건이다. 제품 head `fc4da6f`는 그대로다.
+
+### 1. 해결 — `memory_links` 조회가 없는 열을 읽었다 (QA 도우미 결함)
+
+QA 보강 도우미(`.agent-runtime/qa-mvp/e2e/helpers.ts`의 `linkedSourceOf`)가 `memory_links`에서
+`source, source_id`를 select해 **SQLSTATE 42703**으로 실패했다. 그 테이블에 **`source_id` 열은 없다.**
+실제 계약은 `source`('event'|'wish')와 대응하는 **`calendar_event_id` / `wish_item_id`**이고,
+`memory_links_exactly_one_source` CHECK가 둘 중 정확히 하나만 채워지게 한다.
+
+- **제품 결함이 아니다.** 제품은 같은 테이블을 `links/server/queries.ts`의 `LINK_COLUMNS`로 올바르게 읽고
+  `toMemoryLink()`가 `source === 'event' ? calendar_event_id : wish_item_id`로 매핑한다.
+- 도우미를 **제품과 같은 매핑**으로 고쳤다. 스펙이 기대하는 `{ source, sourceId }` 모양은 그대로 두어
+  단언을 약화하지 않았고, 대응 ID가 비어 있으면 조용히 `null`을 돌려주는 대신 예외를 던진다.
+- 고친 파일은 `.agent-runtime/` 아래라 **커밋하지 않는다**(Git 제외 경로).
+
+### 2. 미해결 — 375px 캘린더 가로 넘침의 원인을 특정하지 못했다
+
+`03-mobile-375.spec.ts:82`의 `/calendar` `expectNoOverflow`가 실패했다. **원인을 찾지 못했고,
+근거 없이 제품을 고치지 않았다.** 확인한 내용은 아래와 같다.
+
+먼저 캘린더 스위트에는 **모바일 뷰포트 검증이 없었다**(`tests/calendar/playwright.config.ts`는
+1280×900 하나뿐). 그래서 이 화면이 375px에서 측정된 것은 이번이 처음이고, 실제 결함일 가능성이 있었다.
+
+`MonthGrid.tsx`·`CalendarView.tsx`의 **클래스 문자열을 그대로 옮긴 복제 DOM**을 제품 CSS(프로젝트
+Tailwind 설정으로 빌드)와 함께 Chromium 375×812에서 실측했다. 공백 없는 40자 제목을 오늘 칸에 넣었다.
+
+| 변형 | `documentElement.scrollWidth` | 표 너비 | 판정 |
+| --- | --- | --- | --- |
+| 제품 클래스 그대로 | 375 | 341 | **PASS** |
+| 래퍼 `overflow-hidden` 제거 | 375 | 341 | PASS |
+| 칩 `truncate` 제거 | 375 | 341 | PASS |
+| `table-fixed` 제거 | 375 | **603** | PASS(래퍼가 자른다) |
+
+- 긴 제목 칩은 칸 밖으로 **약 267px** 삐져나가지만, `table-fixed`가 표를 컨테이너에 묶고 래퍼의
+  `overflow-hidden`이 남은 삐져나감을 자르므로 **문서 가로 스크롤은 생기지 않는다.**
+- `isMobile` 유무(overlay/classic 스크롤바) 양쪽에서 같은 결과였다.
+- 필터·달 이동·보기 전환 줄도 `flex-wrap`이라 375px에서 줄바꿈으로 들어간다(픽셀 계산 확인).
+- 공통 셸(`AppShell`)의 하단 메뉴는 6항목 `flex-1`이고 `position: fixed`라 문서 스크롤에 기여하지 않는다.
+
+**따라서 복제로 재현되는 범위에서는 캘린더 마크업이 원인이 아니다.** 같은 실행에서 `/wishes`와
+위시 상세는 같은 긴 제목으로 통과했으므로 공통 셸 단독 원인도 아니다. 남은 후보는 이 세션에서 복제할 수
+없는 부분(실제 서버 렌더 상태, Windows Chromium의 실제 스크롤바 동작, 또는 내가 재현하지 못한 화면 상태)이다.
+
+**한 가지만 바꿨다 — 진단을 실패 메시지에 담았다.** `expectNoOverflow`가 실패할 때
+`innerWidth / clientWidth / scrollWidth`와 **넘친 요소 목록**(태그·너비·오른쪽 끝·클래스, 조상이 자르는
+요소와 `fixed` 요소는 제외)을 함께 알린다. 판정 기준은 그대로다(약화하지 않았다).
+다음 실행 한 번으로 원인 요소가 이름으로 나온다.
+
+**제품에 추가한 회귀 테스트**: `tests/unit/calendar-month-grid-mobile.test.ts` (4건).
+위 실측으로 드러난 사실 — `table-fixed`와 래퍼 `overflow-hidden`이 **함께** 모바일 배치를 지탱한다 —
+를 소스로 고정한다. 칩은 `truncate`로 줄이되 `title` 속성에 전체 제목을 남기므로 **내용을 숨겨서
+통과시키는 것이 아니다**(상세 화면은 `break-words`로 전체 제목을 보여 준다).
+이 테스트는 보고된 실패를 **고치는 것이 아니다.** 같은 화면에서 확인된 사실을 지키는 것이다.
+
 ## 실행한 검증 (2차 재검토 반영 후 최종 head 기준)
 
 검증은 **클라우드 리눅스 거울**에서 했다. 기준 커밋 `91dce48`에 이 브랜치의 커밋 차이를 그대로
@@ -120,12 +176,18 @@
 | frozen install (pnpm 11.19.0, Node 22) | 통과, package/lockfile 변경 없음 |
 | `pnpm exec tsc --noEmit` | 통과 |
 | `pnpm exec eslint .` | 통과 |
-| `pnpm test` (vitest, 저장소 실제 스크립트) | **826 passed / 61 files** (기준 809 → 1차 반영 825 → 2차 재검토 회귀 1건 추가) |
+| `pnpm test` (vitest, 저장소 실제 스크립트) | **830 passed / 62 files** (기준 809 → 825 → 826 → QA 보강 회귀 4건 추가) |
 | `pnpm build` | 통과 |
 
 `--runInBand`는 이 저장소의 스크립트가 Jest가 아니라 vitest라 해당 옵션이 없다. 기본 `pnpm test`로 실행했다.
 
 ## 미실행 검증 — 이유와 재개 조건
+
+**QA 보강 재실행이 필요한 항목**(총괄 담당): `03-mobile-375.spec.ts`의 `/calendar` 검사를 다시 돌려
+새 진단 메시지로 넘친 요소를 확인해야 한다. `01-link-unlink-existing.spec.ts`와
+`02-partial-link-failure.spec.ts`는 `linkedSourceOf` 수정 뒤 아직 실행되지 않았다.
+이 세션은 로컬 Supabase에 닿을 수 없어 어느 것도 실행하지 못했다.
+
 
 이 세션은 사용자 PC의 **파일**에는 접근하지만, Windows에서 loopback에 묶여 실행 중인
 **Supabase 컨테이너에는 접근할 수 없다**(원격 셸이 별도 리눅스 VM이라 Windows의 localhost에 닿지
